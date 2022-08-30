@@ -2,7 +2,7 @@ package example
 
 import (
 	"context"
-	"github.com/golang/protobuf/ptypes"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
 	pd "zrpc/rpc/proto"
 )
@@ -14,10 +14,10 @@ type Test struct {
 func (t *Test) QueryProto(ctx context.Context, arg *anypb.Any) (reply *anypb.Any, err error) {
 	//log.Printf("service.QueryProto ===================== service.QueryProto：%v", arg)
 	unmarshal := &pd.Args{}
-	ptypes.UnmarshalAny(arg, unmarshal)
+	anypb.UnmarshalTo(arg, unmarshal, proto.UnmarshalOptions{})
 	//log.Printf("service.QueryProto ===================== service.QueryProto：%v", unmarshal)
 	//time.Sleep(1 * time.Second)
-	reply, err = ptypes.MarshalAny(&pd.Reply{Code: 200, Message: unmarshal.Param})
+	reply, err = anypb.New(&pd.Reply{Code: 200, Message: unmarshal.Param})
 	return
 }
 
@@ -25,9 +25,9 @@ func (t *Test) QueryProto(ctx context.Context, arg *anypb.Any) (reply *anypb.Any
 func (t *Test) QueryProto2(ctx context.Context, arg *anypb.Any) (reply *anypb.Any, err error) {
 	//log.Printf("service.QueryProto ===================== service.QueryProto：%v", arg)
 	unmarshal := &pd.Args2{}
-	ptypes.UnmarshalAny(arg, unmarshal)
+	anypb.UnmarshalTo(arg, unmarshal, proto.UnmarshalOptions{})
 	//log.Printf("service.QueryProto ===================== service.QueryProto：%v", unmarshal)
 	//time.Sleep(1 * time.Second)
-	reply, err = ptypes.MarshalAny(&pd.Reply{Code: 200, Message: unmarshal.Param})
+	reply, err = anypb.New(&pd.Reply{Code: 200, Message: unmarshal.Param})
 	return
 }

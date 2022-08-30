@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"github.com/golang/protobuf/ptypes"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
 	"log"
 	"sync"
@@ -61,14 +62,16 @@ func main() {
 		Id:    2,
 		Param: str,
 	}
-	inArgsAny, err := ptypes.MarshalAny(args)
+	//inArgsAny, err := ptypes.MarshalAny(args)
+	inArgsAny, err := anypb.New(args)
 	errC := cli.Call("service.QueryProto", inArgsAny, &reply)
 	if errC != nil {
 		fmt.Println("main.call.errC", errC)
 	} else {
 		reply1 := reply.(*anypb.Any)
 		unmarshal := &pd.Reply{}
-		ptypes.UnmarshalAny(reply1, unmarshal)
+		//ptypes.UnmarshalAny(reply1, unmarshal)
+		anypb.UnmarshalTo(reply1, unmarshal, proto.UnmarshalOptions{})
 		fmt.Println("main.call.reply", unmarshal)
 	}
 
