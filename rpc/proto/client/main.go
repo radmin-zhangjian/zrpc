@@ -66,8 +66,8 @@ func main() {
 	// 参数 struct 格式
 	str := "我是rpc测试参数！！！"
 	args := &pd.Args{
-		Id:     2,
-		Params: str,
+		Id:    2,
+		Param: str,
 	}
 	inArgsAny, err := ptypes.MarshalAny(args)
 	errC := cli.Call("service.QueryProto", inArgsAny, &reply)
@@ -86,8 +86,8 @@ func main() {
 	var reply2 any
 	str = "我是rpc测试参数222！！！"
 	args2 := &pd.Args2{
-		Id:     1,
-		Params: str,
+		Id:    1,
+		Param: str,
 	}
 	inArgsAny, err = ptypes.MarshalAny(args2)
 	call2 := cli.Go("service.QueryProto2", inArgsAny, &reply2, nil)
@@ -118,8 +118,8 @@ func Client(wg *sync.WaitGroup) {
 	var reply any
 	// 参数 struct 格式
 	args := &pd.Args{
-		Id:     2,
-		Params: "msg",
+		Id:    2,
+		Param: "msg",
 	}
 	inArgsAny, _ := ptypes.MarshalAny(args)
 	err := cli.Call("service.QueryProto", inArgsAny, &reply)
