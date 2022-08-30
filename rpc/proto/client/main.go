@@ -3,7 +3,6 @@ package main
 import (
 	"flag"
 	"fmt"
-	"github.com/golang/protobuf/ptypes"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
 	"log"
@@ -84,7 +83,7 @@ func main() {
 		Id:    1,
 		Param: str,
 	}
-	inArgsAny, err = ptypes.MarshalAny(args2)
+	inArgsAny, err = anypb.New(args2)
 	call2 := cli.Go("service.QueryProto2", inArgsAny, &reply2, nil)
 	<-call2.Done
 	if call2.Error != nil {
@@ -92,7 +91,7 @@ func main() {
 	} else {
 		result := reply2.(*anypb.Any)
 		unmarshal := &pd.Reply{}
-		ptypes.UnmarshalAny(result, unmarshal)
+		anypb.UnmarshalTo(result, unmarshal, proto.UnmarshalOptions{})
 		fmt.Printf("main.go.reply2: %v \n", unmarshal)
 	}
 
@@ -116,7 +115,7 @@ func Client(wg *sync.WaitGroup) {
 		Id:    2,
 		Param: "msg",
 	}
-	inArgsAny, _ := ptypes.MarshalAny(args)
+	inArgsAny, _ := anypb.New(args)
 	err := cli.Call("service.QueryProto", inArgsAny, &reply)
 	if err != nil {
 		//fmt.Println("main.call.err", err)
