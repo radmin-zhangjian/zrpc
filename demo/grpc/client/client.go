@@ -4,6 +4,7 @@ import (
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/grpclog"
+	"log"
 	pb "zrpc/demo/grpc/proto/hello" // 引入proto包
 )
 
@@ -31,5 +32,6 @@ func main() {
 		grpclog.Fatalln(err)
 	}
 
+	log.Println(res.Message)
 	grpclog.Println(res.Message)
 }

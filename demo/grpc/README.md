@@ -45,5 +45,6 @@ source ~/.bash_profile
 ````
 protoc --go_out=. --go-grpc_out=. ./hello.proto
 # 或者
-# protoc -I . --go_out=plugins=grpc:. ./hello.proto
+protoc --go_out=. ./hello.proto
+protoc --go-grpc_out=. ./hello.proto
 ````

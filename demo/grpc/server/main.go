@@ -16,7 +16,9 @@ const (
 )
 
 // 定义helloService并实现约定的接口
-type helloService struct{}
+type helloService struct {
+	pb.UnimplementedHelloServer
+}
 
 // HelloService Hello服务
 var HelloService = helloService{}
