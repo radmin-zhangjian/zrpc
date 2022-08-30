@@ -47,4 +47,7 @@ protoc --go_out=. --go-grpc_out=. ./hello.proto
 # 或者
 protoc --go_out=. ./hello.proto
 protoc --go-grpc_out=. ./hello.proto
+# .pb.go文件路径不依赖于.proto文件中的option go_package配置项，直接在go_out指定的目录下生成.pb.go文件
+protoc --go_opt=paths=source_relative --go_out=. ./hello.proto
+protoc --go-grpc_opt=paths=source_relative --go-grpc_out=. ./hello.proto
 ````
