@@ -1,0 +1,35 @@
+syntax = "proto3";
+
+package proto;
+
+import "google/protobuf/any.proto";
+
+option go_package ="./;proto";
+
+// 参数1
+message Args {
+  int64 Id = 1;
+  string Msg = 2;
+}
+
+// 参数2
+message Args2 {
+  int64 Id = 1;
+  string Msg2 = 2;
+}
+
+// 返回值
+message Reply {
+  int64 Code = 1;
+  string Result = 2;
+}
+
+// 请求体
+message Response {
+  string ServiceMethod = 1;
+//  map<string, google.protobuf.Any> Args = 2;
+  google.protobuf.Any Args = 2;
+  google.protobuf.Any Reply = 3;
+  string Error = 4;
+  uint64 Seq = 5;
+}

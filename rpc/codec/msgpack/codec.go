@@ -20,7 +20,7 @@ func (c *codec) Encoder(data zio.Response) ([]byte, error) {
 	// msgpack 编码
 	buf, err := msgpack.Marshal(data)
 	if err != nil {
-		log.Fatalln("Failed to encode:", err)
+		log.Println("Failed to encode:", err)
 		return buf, err
 	}
 	return buf, nil
@@ -32,7 +32,7 @@ func (c *codec) Decoder(b []byte) (zio.Response, error) {
 	var data zio.Response
 	err := msgpack.Unmarshal(b, &data)
 	if err != nil {
-		log.Fatalln("Failed to decode:", err)
+		log.Println("Failed to decode:", err)
 		return data, err
 	}
 	return data, nil
