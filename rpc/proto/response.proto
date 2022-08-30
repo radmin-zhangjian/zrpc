@@ -9,19 +9,19 @@ option go_package ="./;proto";
 // 参数1
 message Args {
   int64 Id = 1;
-  string Msg = 2;
+  string Params = 2;
 }
 
 // 参数2
 message Args2 {
   int64 Id = 1;
-  string Msg2 = 2;
+  string Params = 2;
 }
 
 // 返回值
 message Reply {
   int64 Code = 1;
-  string Result = 2;
+  string Message = 2;
 }
 
 // 请求体

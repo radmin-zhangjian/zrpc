@@ -17,7 +17,7 @@ func (t *Test) QueryProto(ctx context.Context, arg *anypb.Any) (reply *anypb.Any
 	ptypes.UnmarshalAny(arg, unmarshal)
 	//log.Printf("service.QueryProto ===================== service.QueryProto：%v", unmarshal)
 	//time.Sleep(1 * time.Second)
-	reply, err = ptypes.MarshalAny(&pd.Reply{Code: 200, Result: unmarshal.Msg})
+	reply, err = ptypes.MarshalAny(&pd.Reply{Code: 200, Message: unmarshal.Params})
 	return
 }
 
@@ -28,6 +28,6 @@ func (t *Test) QueryProto2(ctx context.Context, arg *anypb.Any) (reply *anypb.An
 	ptypes.UnmarshalAny(arg, unmarshal)
 	//log.Printf("service.QueryProto ===================== service.QueryProto：%v", unmarshal)
 	//time.Sleep(1 * time.Second)
-	reply, err = ptypes.MarshalAny(&pd.Reply{Code: 200, Result: unmarshal.Msg2})
+	reply, err = ptypes.MarshalAny(&pd.Reply{Code: 200, Message: unmarshal.Params})
 	return
 }
