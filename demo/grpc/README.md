@@ -44,6 +44,7 @@ source ~/.bash_profile
 ### 编译 protoc  
 ````
 protoc --go_out=. --go-grpc_out=. ./hello.proto
+protoc -I . --go_out=. --go-grpc_out=. ./response.proto
 # 或者
 protoc --go_out=. ./hello.proto
 protoc --go-grpc_out=. ./hello.proto

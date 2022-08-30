@@ -1,3 +1,50 @@
+### protobuf 创建
+protoc -I . --go_out=. --go-grpc_out=. ./response.proto
+
+### server 服务端
+````
+package main
+
+import (
+	"flag"
+	"log"
+	"zrpc/rpc"
+	"zrpc/rpc/proto/example"
+	"zrpc/rpc/proto/rpcp"
+)
+
+// go run main.go -addr=127.0.0.1:8092
+var (
+	addr     = flag.String("addr", ":8092", "server address")
+	registry = flag.String("registry", "redis://127.0.0.1:6379", "registry address")
+	basePath = flag.String("basepath", "/zrpc_center", "")
+)
+
+// 自己定义数据格式的读写
+func main() {
+	// 解析参数
+	if !flag.Parsed() {
+		flag.Parse()
+	}
+
+	// 创建服务发现
+	sd, err := rpc.CreateServiceDiscovery(*basePath, *registry, "", 0, 100)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// 创建服务端
+	srv := rpcp.NewServer(*addr, sd)
+	// 将服务端方法，注册一下
+	srv.RegisterName(new(example.Test), "service")
+	// 启动服务
+	srv.Serve()
+}
+
+````
+
+### client 客户端
+````
 package main
 
 import (
@@ -17,6 +64,7 @@ import (
 var (
 	registry = flag.String("registry", "redis://127.0.0.1:6379", "registry address")
 	basePath = flag.String("basepath", "/zrpc_center", "")
+	cli *rpcp.Client
 )
 
 func closeCli() {
@@ -35,23 +83,6 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-
-	// 创建客户端
-	if cli == nil {
-		cli = rpcp.NewClient(sd, center.SelectMode(center.Random), true)
-		defer closeCli()
-	}
-
-	// 压测
-	startTime = GetCurrentTimeStampMS()
-	wg := new(sync.WaitGroup)
-	for i := 1; i <= 10000; i++ {
-		wg.Add(1)
-		go Client(wg)
-	}
-	wg.Wait()
-	dtime := GetCurrentTimeStampMS() - startTime
-	fmt.Println("dTime:", dtime)
 
 	// 同步rpc
 	var reply any
@@ -96,38 +127,4 @@ func main() {
 	time.Sleep(2 * time.Second)
 }
 
-var count int64 = 0
-var startTime int64 = 0
-var cli *rpcp.Client
-
-// 生成时间戳
-func GetCurrentTimeStampMS() int64 {
-	return time.Now().UnixNano() / 1e6
-}
-
-func Client(wg *sync.WaitGroup) {
-	defer wg.Done()
-	var reply any
-	// 参数 struct 格式
-	args := &pd.Args{
-		Id:    2,
-		Param: "msg",
-	}
-	inArgsAny, _ := ptypes.MarshalAny(args)
-	err := cli.Call("service.QueryProto", inArgsAny, &reply)
-	if err != nil {
-		//fmt.Println("main.call.err", err)
-	} else {
-		//fmt.Println("main.call.reply", reply)
-	}
-
-	var reply2 any
-	call := cli.Go("service.QueryProto", inArgsAny, &reply2, nil)
-	<-call.Done
-	if call.Error != nil {
-		//fmt.Printf("main.go.reply.error: %v \n", call.Error)
-	} else {
-		//fmt.Printf("main.go.reply: %v \n", reply2)
-	}
-
-}
+````
