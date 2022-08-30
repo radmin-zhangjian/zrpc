@@ -29,7 +29,7 @@ func NewHttp(addr string) *Http {
 }
 
 // RegServe 初始化
-func (s *Http) RegServe(sd center.ServeDiscovery) *gin.Engine {
+func (s *Http) RegServe(sd center.ServeDiscovery, selectMode center.SelectAlgorithm, mode bool) *gin.Engine {
 	// 启动模式
 	gin.SetMode("debug")
 	router := gin.New()
@@ -61,7 +61,7 @@ func (s *Http) RegServe(sd center.ServeDiscovery) *gin.Engine {
 		}
 		api := servicePath + "." + strings.ToUpper(serviceMethod[:1]) + serviceMethod[1:]
 
-		client := NewClient(sd, center.SelectMode(center.Random), false)
+		client := NewClient(sd, selectMode, mode)
 		var reply any
 		call := client.Go(api, args, &reply, nil)
 		<-call.Done

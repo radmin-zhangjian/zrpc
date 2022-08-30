@@ -4,6 +4,7 @@ import (
 	"flag"
 	"log"
 	"zrpc/rpc"
+	"zrpc/rpc/center"
 )
 
 var (
@@ -25,7 +26,7 @@ func main() {
 		log.Fatal(err)
 	}
 	// 注册服务
-	router := http.RegServe(sd)
+	router := http.RegServe(sd, center.SelectMode(center.Random), false)
 	// 启动http服务
 	http.HttpServer(router)
 }
