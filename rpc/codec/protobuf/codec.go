@@ -23,7 +23,6 @@ func (c *codec) Encoder(data pd.Response) ([]byte, error) {
 		log.Fatalln("Failed to encode:", err)
 		return buf, err
 	}
-	//fmt.Println(buf)
 	return buf, nil
 
 }
@@ -37,6 +36,5 @@ func (c *codec) Decoder(b []byte) (pd.Response, error) {
 		log.Fatalln("Failed to decode:", err)
 		return data, err
 	}
-	//fmt.Println(data)
 	return data, nil
 }
