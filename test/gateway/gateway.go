@@ -26,7 +26,7 @@ func main() {
 		log.Fatal(err)
 	}
 	// 注册服务
-	router := http.RegServe(sd, center.SelectMode(center.Random), true)
+	router := http.RegServe(sd, center.SelectMode(center.RoundRobin), true)
 	// 启动http服务
 	http.HttpServer(router)
 }

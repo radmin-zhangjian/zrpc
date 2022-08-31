@@ -57,9 +57,14 @@ func call(c *gin.Context, sd center.ServeDiscovery, selectMode center.SelectAlgo
 	}
 	api := servicePath + "." + strings.ToUpper(serviceMethod[:1]) + serviceMethod[1:]
 
+	// 短连接
+	//client = NewClient(sd, selectMode, mode)
+
+	// 长连接
 	if client == nil {
 		client = NewClient(sd, selectMode, mode)
 	}
+
 	var reply any
 	call := client.Go(api, args, &reply, nil)
 	<-call.Done
