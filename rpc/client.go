@@ -2,7 +2,6 @@ package rpc
 
 import (
 	"errors"
-	"fmt"
 	"io"
 	"log"
 	"net"
@@ -15,6 +14,7 @@ import (
 
 var debugLog = false
 var ErrShutdown = errors.New("connection is shut down")
+var ErrDiscovery = errors.New("service not found")
 
 type ClientCodec interface {
 	Encoder(zio.Response) ([]byte, error)
@@ -56,9 +56,12 @@ type Client struct {
 }
 
 // ClientConn 构造方法
-func ClientConn(sd center.ServeDiscovery, sm center.SelectAlgorithm) net.Conn {
+func ClientConn(sd center.ServeDiscovery, sm center.SelectAlgorithm) (net.Conn, error) {
 	// 发现服务
 	disArrs, err := sd.ServeDiscovery()
+	if err != nil {
+		return nil, ErrDiscovery
+	}
 
 	// 路由/负载均衡
 	addr := sm.Algorithm(disArrs)
@@ -69,9 +72,9 @@ func ClientConn(sd center.ServeDiscovery, sm center.SelectAlgorithm) net.Conn {
 	// 链接服务端
 	conn, err := net.Dial("tcp", addr)
 	if err != nil {
-		fmt.Println("err")
+		return nil, err
 	}
-	return conn
+	return conn, nil
 }
 
 // ClientNew 构造方法
@@ -90,8 +93,7 @@ func NewClient(sd center.ServeDiscovery, sm center.SelectAlgorithm, mode bool) (
 	// 发现服务
 	disArrs, err := sd.ServeDiscovery()
 	if err != nil {
-		log.Println("disArrs: ", err)
-		return nil, err
+		return nil, ErrDiscovery
 	}
 
 	// 路由/负载均衡
