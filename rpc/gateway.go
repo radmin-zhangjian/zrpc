@@ -86,51 +86,10 @@ func (s *Http) RegServe(sd center.ServeDiscovery, selectMode center.SelectAlgori
 	router.Use(gin.Recovery())
 
 	router.POST("/", func(c *gin.Context) {
-
 		wg := &sync.WaitGroup{}
 		wg.Add(1)
 		go call(c, sd, selectMode, mode, wg)
 		wg.Wait()
-		//result := Result{}
-		//var args map[string]any
-		//content := c.PostForm("content")
-		//if content == "" {
-		//	result.Code = 1000
-		//	result.Data = ""
-		//	result.Msg = "content is empty"
-		//	c.JSON(http.StatusOK, result)
-		//	return
-		//}
-		//b := []byte(content)
-		//json.Unmarshal(b, &args)
-		//
-		//servicePath := c.PostForm("servicePath")
-		//serviceMethod := c.PostForm("serviceMethod")
-		//if servicePath == "" || serviceMethod == "" {
-		//	result.Code = 1000
-		//	result.Data = ""
-		//	result.Msg = "servicePath or serviceMethod is empty"
-		//	c.JSON(http.StatusOK, result)
-		//	return
-		//}
-		//api := servicePath + "." + strings.ToUpper(serviceMethod[:1]) + serviceMethod[1:]
-		//
-		//client := NewClient(sd, selectMode, mode)
-		//var reply any
-		//call := client.Go(api, args, &reply, nil)
-		//<-call.Done
-		//if call.Error != nil {
-		//	//fmt.Printf("main.go.reply.error: %v \n", call.Error)
-		//	result.Code = 1000
-		//	result.Data = ""
-		//	result.Msg = call.Error.Error()
-		//} else {
-		//	//fmt.Printf("main.go.reply: %v \n", reply)
-		//	result.Code = 200
-		//	result.Data = reply
-		//	result.Msg = ""
-		//}
-		//c.JSON(http.StatusOK, result)
 	})
 
 	return router

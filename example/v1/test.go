@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"strconv"
-	"time"
 )
 
 type Test struct {
@@ -48,7 +47,7 @@ func (t *Test) QueryUser(ctx context.Context, arg Args, reply *any) error {
 // QueryInt 用于测试用户查询的方法
 func (t *Test) QueryInt(ctx context.Context, arg map[string]any, reply *any) error {
 	//log.Printf("v1.QueryInt ===================== v1.QueryInt ID：%v", arg["Id"])
-	time.Sleep(5 * time.Second)
+	//time.Sleep(5 * time.Second)
 	*reply = "111222333" + "::" + arg["msg"].(string)
 	return nil
 }
