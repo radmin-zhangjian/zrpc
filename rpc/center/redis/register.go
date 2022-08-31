@@ -3,6 +3,7 @@ package redis
 import (
 	"crypto/md5"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"github.com/go-redis/redis/v8"
 	"log"
@@ -34,7 +35,7 @@ func (sd *ServiceDiscovery) ServeRegister(addr string) {
 }
 
 // ServeDiscovery redis服务发现
-func (sd *ServiceDiscovery) ServeDiscovery() []map[string]any {
+func (sd *ServiceDiscovery) ServeDiscovery() ([]map[string]any, error) {
 	// hash get 方式
 	//return sd.serveHGetAll()
 	// scan get 方式
@@ -96,11 +97,16 @@ func (sd *ServiceDiscovery) serveHSet(addr string) {
 }
 
 // serveHGetAll redis服务发现
-func (sd *ServiceDiscovery) serveHGetAll() []map[string]any {
+func (sd *ServiceDiscovery) serveHGetAll() ([]map[string]any, error) {
 	key := sd.basePath
 	val, err := HGetAll(key)
 	if err != nil {
 		log.Printf("redis discovery get: %v", err)
+		return nil, err
+	}
+
+	if len(val.(map[string]string)) <= 0 {
+		return nil, errors.New("redis discovery is empty")
 	}
 
 	sd.mu.Lock()
@@ -125,7 +131,7 @@ func (sd *ServiceDiscovery) serveHGetAll() []map[string]any {
 		disArrs = append(disArrs, mapVal)
 		i++
 	}
-	return disArrs
+	return disArrs, nil
 }
 
 // serveSet redis服务注册
@@ -156,11 +162,16 @@ func (sd *ServiceDiscovery) serveSet(addr string) {
 }
 
 // serveScan redis服务发现
-func (sd *ServiceDiscovery) serveScan() []map[string]any {
+func (sd *ServiceDiscovery) serveScan() ([]map[string]any, error) {
 	key := sd.basePath
 	vals, err := GetScan(key)
 	if err != nil {
 		log.Printf("redis discovery get: %v", err)
+		return nil, err
+	}
+
+	if len(vals.([]string)) <= 0 {
+		return nil, errors.New("redis discovery is empty")
 	}
 
 	sd.mu.Lock()
@@ -185,5 +196,5 @@ func (sd *ServiceDiscovery) serveScan() []map[string]any {
 		disArrs = append(disArrs, mapVal)
 		i++
 	}
-	return disArrs
+	return disArrs, nil
 }

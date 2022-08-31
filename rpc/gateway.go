@@ -15,6 +15,7 @@ import (
 )
 
 var client *Client
+var ErrShutdownnum int64 = 0
 
 type Result struct {
 	Code int64
@@ -31,8 +32,8 @@ func NewHttp(addr string) *Http {
 	return &Http{addr: addr}
 }
 
-func call(c *gin.Context, sd center.ServeDiscovery, selectMode center.SelectAlgorithm, mode bool, wg *sync.WaitGroup) {
-	defer wg.Done()
+func send(c *gin.Context, sd center.ServeDiscovery, selectMode center.SelectAlgorithm, mode bool, wg *sync.WaitGroup) {
+	//defer wg.Done()
 	result := Result{}
 	var args map[string]any
 	content := c.PostForm("content")
@@ -62,19 +63,38 @@ func call(c *gin.Context, sd center.ServeDiscovery, selectMode center.SelectAlgo
 
 	// 长连接
 	if client == nil {
-		client = NewClient(sd, selectMode, mode)
+		nc, err := NewClient(sd, selectMode, mode)
+		if err != nil {
+			result.Code = 1000
+			result.Data = ""
+			result.Msg = err.Error()
+			c.JSON(http.StatusOK, result)
+			return
+		}
+		client = nc
 	}
 
 	var reply any
 	call := client.Go(api, args, &reply, nil)
 	<-call.Done
 	if call.Error != nil {
-		//fmt.Printf("main.go.reply.error: %v \n", call.Error)
+		errs := call.Error
+		if errs == ErrShutdown {
+			ErrShutdownnum++
+			if ErrShutdownnum < 10 {
+				log.Println("ErrShutdown: ", errs)
+				client = nil
+				//wg.Add(1)
+				send(c, sd, selectMode, mode, wg)
+				return
+			}
+			return
+		}
 		result.Code = 1000
 		result.Data = ""
 		result.Msg = call.Error.Error()
 	} else {
-		//fmt.Printf("main.go.reply: %v \n", reply)
+		ErrShutdownnum = 0
 		result.Code = 200
 		result.Data = reply
 		result.Msg = ""
@@ -92,9 +112,10 @@ func (s *Http) RegServe(sd center.ServeDiscovery, selectMode center.SelectAlgori
 
 	router.POST("/", func(c *gin.Context) {
 		wg := &sync.WaitGroup{}
-		wg.Add(1)
-		go call(c, sd, selectMode, mode, wg)
-		wg.Wait()
+		//wg.Add(1)
+		//go send(c, sd, selectMode, mode, wg)
+		//wg.Wait()
+		send(c, sd, selectMode, mode, wg)
 	})
 
 	return router

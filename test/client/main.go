@@ -52,8 +52,11 @@ func main() {
 
 	// 创建客户端
 	if cli == nil {
-		cli = rpc.NewClient(sd, center.SelectMode(center.Random), true)
+		cli, err = rpc.NewClient(sd, center.SelectMode(center.Random), true)
 		defer closeCli()
+		if err != nil {
+			log.Fatal(err)
+		}
 	}
 
 	// 压测

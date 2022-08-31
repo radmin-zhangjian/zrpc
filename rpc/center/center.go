@@ -7,7 +7,7 @@ import (
 
 type ServeDiscovery interface {
 	ServeRegister(addr string)
-	ServeDiscovery() []map[string]any
+	ServeDiscovery() ([]map[string]any, error)
 	TickerHeartbeatTask(addr string)
 	Close(addr string)
 }
