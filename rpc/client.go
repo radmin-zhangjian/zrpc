@@ -76,13 +76,13 @@ func ClientConn(sd center.ServeDiscovery, sm center.SelectAlgorithm) net.Conn {
 
 // ClientNew 构造方法
 func ClientNew(conn net.Conn, codec ClientCodec, zio ClientIo, mode bool) *Client {
-	client := &Client{io: zio, codec: codec, Conn: conn, pending: make(map[uint64]*Call)}
+	cli := &Client{io: zio, codec: codec, Conn: conn, pending: make(map[uint64]*Call)}
 	if mode == true {
-		go client.input()
+		go cli.input()
 	} else {
-		go client.inputNoCycle()
+		go cli.inputNoCycle()
 	}
-	return client
+	return cli
 }
 
 // NewClient 构造方法
@@ -107,8 +107,8 @@ func NewClient(sd center.ServeDiscovery, sm center.SelectAlgorithm, mode bool) (
 	}
 
 	// 创建客户端对象
-	client := ClientNew(conn, msgpack.New(conn), zio.NewSession(conn), mode)
-	return client, nil
+	cli := ClientNew(conn, msgpack.New(conn), zio.NewSession(conn), mode)
+	return cli, nil
 }
 
 // Call 同步RPC客户端
