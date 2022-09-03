@@ -1,0 +1,46 @@
+<!DOCTYPE HTML>
+<html>
+   <head>
+   <meta charset="utf-8">
+   <title>长连接测试</title>
+   <div><input id="inp_name" class="form-control" style="height:20px;" placeholder="姓名"></input></div>
+   <textarea id="inp_send" class="form-control" style="height:100px;" placeholder="发送的内容"></textarea>
+   <button type="button" id="btn_send" class="btn btn-info" onclick="fun_sendto();">发送（ctrl+回车）</button>
+   <script type="text/javascript" src="https://dss0.bdstatic.com/5aV1bjqh_Q23odCf/static/superman/js/lib/jquery-1-edb203c114.10.2.js"></script>
+      <script type="text/javascript">
+        var ws = new WebSocket("ws://localhost:9090/ping");
+        //连接打开时触发
+        ws.onopen = function(evt) {
+            console.log("Connection open ...");
+            ws.send("Hello WebSockets!");
+            $('#message').append("已连接<br>")
+        };
+
+        //接收到消息时触发
+        ws.onmessage = function(evt) {
+            console.log("Received Message: " + evt.data);
+            if (evt.data != "Hello WebSockets!") {
+                $('#message').append(evt.data+"<br>")
+            }
+        };
+
+        //连接关闭时触发
+        ws.onclose = function(evt) {
+            ws.send("close");
+            console.log("Connection closed.");
+            $('#message').append("连接关闭<br>")
+        };
+
+        function fun_sendto(){
+            var content = $("#inp_send").val();
+            var name = $("#inp_name").val();
+            var json = JSON.stringify({"Type": "user", "User": name, "Message": content});
+            console.log(json)
+            ws.send(json);
+        }
+      </script>
+   </head>
+   <body>
+    <div id="message"></div>
+   </body>
+</html>
