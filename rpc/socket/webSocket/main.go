@@ -26,9 +26,9 @@ type Data struct {
 }
 
 type connection struct {
-	ws    *websocket.Conn
-	input chan []byte
-	data  *Data
+	ws     *websocket.Conn
+	output chan []byte
+	data   *Data
 }
 
 type hub struct {
@@ -64,13 +64,13 @@ func (h *hub) Run() {
 			wsc.data.User = ""
 			wsc.data.Message = string("hello")
 			dataByte, _ := json.Marshal(wsc.data)
-			wsc.input <- dataByte
+			wsc.output <- dataByte
 		case wsc := <-h.unregister:
 			// 判断map里是否存在要删的数据
 			if _, ok := h.connections[wsc]; ok {
 				delete(h.connections, wsc)
 				// 关闭连接管道
-				close(wsc.input)
+				close(wsc.output)
 			}
 		case data := <-h.broadcast:
 			h.Connections(data)
@@ -82,18 +82,18 @@ func (h *hub) Connections(data []byte) {
 	// 广播所有人
 	for c := range h.connections {
 		select {
-		case c.input <- data:
+		case c.output <- data:
 		default:
 			// 防止死循环
 			delete(h.connections, c)
-			close(c.input)
+			close(c.output)
 		}
 	}
 }
 
 func (wsc *connection) Writer() {
 	// 写入ws数据
-	for message := range wsc.input {
+	for message := range wsc.output {
 		err := wsc.ws.WriteMessage(websocket.TextMessage, message)
 		if err != nil {
 			continue
@@ -144,9 +144,9 @@ func ping(c *gin.Context) {
 	}
 
 	wsc := &connection{
-		ws:    ws,
-		input: make(chan []byte, 128),
-		data:  new(Data),
+		ws:     ws,
+		output: make(chan []byte, 128),
+		data:   new(Data),
 	}
 
 	// 注册
