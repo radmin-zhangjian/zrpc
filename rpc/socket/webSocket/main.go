@@ -19,10 +19,10 @@ var upGrader = websocket.Upgrader{
 }
 
 type Data struct {
-	Ip      string
-	Message string
-	User    string
-	Type    string
+	Ip      string `json:"ip"`
+	Message string `json:"message"`
+	User    string `json:"user"`
+	Type    string `json:"type"`
 }
 
 type connection struct {

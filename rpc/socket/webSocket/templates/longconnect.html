@@ -34,7 +34,7 @@
         function fun_sendto(){
             var content = $("#inp_send").val();
             var name = $("#inp_name").val();
-            var json = JSON.stringify({"Type": "user", "User": name, "Message": content});
+            var json = JSON.stringify({"type": "user", "user": name, "message": content});
             console.log(json)
             ws.send(json);
         }
