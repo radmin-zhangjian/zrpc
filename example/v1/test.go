@@ -19,8 +19,8 @@ type Args struct {
 
 // User 定义用户对象
 type User struct {
-	Name string
-	Age  int
+	Name string `json:"name"`
+	Age  int    `json:"age"`
 }
 
 // QueryUser 用于测试用户查询的方法
@@ -34,9 +34,8 @@ func (t *Test) QueryUser(ctx context.Context, arg Args, reply *any) error {
 	// 模拟查询用户
 	uid := arg.Id
 	if u, ok := user[uid]; ok {
-		//var rep []byte
-		//rep, _ = json.Marshal(u)
-		//*reply = rep
+		//rep, _ := json.Marshal(u)
+		//*reply = string(rep)
 		*reply = u
 	} else {
 		return errors.New("No data found. uid = " + strconv.FormatInt(uid, 10))

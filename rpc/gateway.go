@@ -18,9 +18,9 @@ var client *Client
 var ErrShutdownnum int64 = 0
 
 type Result struct {
-	Code int64
-	Data any
-	Msg  any
+	Code int64 `json:"code"`
+	Data any   `json:"data"`
+	Msg  any   `json:"msg"`
 }
 
 type Http struct {
