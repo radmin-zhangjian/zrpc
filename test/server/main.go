@@ -44,5 +44,5 @@ func main() {
 	srv.RegisterName(new(v1.Test), "v1")
 	srv.RegisterName(new(v2.Test), "v2")
 	// 启动服务
-	srv.Serve()
+	srv.Accept(srv.Server())
 }

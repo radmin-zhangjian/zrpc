@@ -32,11 +32,16 @@ type ServerIo interface {
 
 // Server 声明服务端
 type Server struct {
-	codec      ServerCodec
 	sd         center.ServeDiscovery
 	addr       string
 	serviceMap sync.Map
+}
+
+// Serve 服务
+type Serve struct {
+	codec      ServerCodec
 	io         ServerIo
+	serviceMap sync.Map
 }
 
 type methodType struct {
@@ -160,26 +165,26 @@ func (server *Server) close(lis net.Listener) {
 	lis.Close()
 }
 
-// Serve 监听tcp
-func (server *Server) Serve() (lis net.Listener) {
+// Server 启动服务
+func (server *Server) Server() (lis net.Listener) {
 	lis, e := net.Listen("tcp", server.addr)
 	if e != nil {
 		log.Fatalf("监听 %s err :%v", server.addr, e)
 		server.close(lis)
 		return
 	}
-	defer server.close(lis)
 
 	// 注册服务中心
 	server.sd.ServeRegister(server.addr)
 	// 心跳监测
 	go server.sd.TickerHeartbeatTask(server.addr)
 
-	server.Accept(lis)
 	return
 }
 
+// Accept 监听tcp
 func (server *Server) Accept(lis net.Listener) {
+	defer server.close(lis)
 	for {
 		conn, err := lis.Accept()
 		if err != nil {
@@ -189,22 +194,23 @@ func (server *Server) Accept(lis net.Listener) {
 			continue
 		}
 
-		server.ServerConn(msgpack.New(conn), zio.NewSession(conn))
+		go server.Serve(msgpack.New(conn), zio.NewSession(conn))
 	}
 }
 
-func (server *Server) ServerConn(codec ServerCodec, zio ServerIo) {
-	server.io = zio
-	server.codec = codec
-	server.ServeCodec()
+// Serve 建立服务
+func (server *Server) Serve(codec ServerCodec, zio ServerIo) {
+	serve := &Serve{codec: codec, io: zio}
+	serve.serviceMap = server.serviceMap
+	serve.ServeCodec()
 }
 
 // ServeCodec 调用接口
-func (server *Server) ServeCodec() {
+func (serve *Serve) ServeCodec() {
 	sending := new(sync.Mutex)
 	wg := new(sync.WaitGroup)
 	for {
-		response, svc, mtype, keepReading, req, err := server.readRequest()
+		response, svc, mtype, keepReading, req, err := serve.readRequest()
 		if err != nil {
 			//if err == io.EOF {
 			//	break
@@ -213,21 +219,21 @@ func (server *Server) ServeCodec() {
 				break
 			}
 			if !req {
-				server.sendResponse(response, sending, err)
+				serve.sendResponse(response, sending, err)
 			}
 			continue
 		}
 		wg.Add(1)
-		go server.call(response, svc, mtype, sending, wg)
+		serve.call(response, svc, mtype, sending, wg)
 	}
 	wg.Wait()
-	server.io.Close()
+	serve.io.Close()
 }
 
 // 读取并解析参数
-func (server *Server) readRequest() (response *zio.Response, svc *service, mtype *methodType, keepReading bool, req bool, err error) {
+func (serve *Serve) readRequest() (response *zio.Response, svc *service, mtype *methodType, keepReading bool, req bool, err error) {
 	// 使用RPC方式读取数据
-	b, err := server.io.Read()
+	b, err := serve.io.Read()
 	if err != nil {
 		req = true
 		if err == io.EOF || err == io.ErrUnexpectedEOF {
@@ -237,7 +243,7 @@ func (server *Server) readRequest() (response *zio.Response, svc *service, mtype
 	}
 
 	// 数据解码
-	res, err := server.codec.Decoder(b)
+	res, err := serve.codec.Decoder(b)
 	response = &res
 	if err != nil {
 		req = true
@@ -266,7 +272,7 @@ func (server *Server) readRequest() (response *zio.Response, svc *service, mtype
 	//method, _ = rType.MethodByName(methodName)
 
 	// 查询注册的方法
-	svci, ok := server.serviceMap.Load(serviceName)
+	svci, ok := serve.serviceMap.Load(serviceName)
 	if !ok {
 		err = errors.New("rpc: can't find service " + response.ServiceMethod)
 		return
@@ -279,13 +285,13 @@ func (server *Server) readRequest() (response *zio.Response, svc *service, mtype
 }
 
 // 结果返回客户端
-func (server *Server) call(response *zio.Response, svc *service, mtype *methodType, sending *sync.Mutex, wg *sync.WaitGroup) {
+func (serve *Serve) call(response *zio.Response, svc *service, mtype *methodType, sending *sync.Mutex, wg *sync.WaitGroup) {
 	defer wg.Done()
 
 	// 捕获业务程序异常 防止崩溃
 	defer func() {
 		if err := recover(); err != nil {
-			server.sendResponse(response, sending, err.(error))
+			serve.sendResponse(response, sending, err.(error))
 			return
 		}
 	}()
@@ -316,20 +322,20 @@ func (server *Server) call(response *zio.Response, svc *service, mtype *methodTy
 	}
 
 	// 发送客户端
-	server.sendResponse(response, sending, errReturn)
+	serve.sendResponse(response, sending, errReturn)
 }
 
-func (server *Server) sendResponse(response *zio.Response, sending *sync.Mutex, errReturn error) {
+func (serve *Serve) sendResponse(response *zio.Response, sending *sync.Mutex, errReturn error) {
 	sending.Lock()
 	// 数据编码，返回给客户端
 	respRPCData := zio.Response{ServiceMethod: response.ServiceMethod, Reply: response.Reply, Seq: response.Seq, Error: errReturn}
-	bytes, errE := server.codec.Encoder(respRPCData)
+	bytes, errE := serve.codec.Encoder(respRPCData)
 	if errE != nil {
 		//return
 	}
 
 	// 将服务端编码后的数据，写出到客户端
-	err := server.io.Write(bytes)
+	err := serve.io.Write(bytes)
 	if err != nil {
 		return
 	}
