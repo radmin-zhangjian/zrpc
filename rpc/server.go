@@ -194,7 +194,7 @@ func (server *Server) Accept(lis net.Listener) {
 			continue
 		}
 
-		go server.Serve(msgpack.New(conn), zio.NewSession(conn))
+		server.Serve(msgpack.New(conn), zio.NewSession(conn))
 	}
 }
 
@@ -202,7 +202,7 @@ func (server *Server) Accept(lis net.Listener) {
 func (server *Server) Serve(codec ServerCodec, zio ServerIo) {
 	serve := &Serve{codec: codec, io: zio}
 	serve.serviceMap = server.serviceMap
-	serve.ServeCodec()
+	go serve.ServeCodec()
 }
 
 // ServeCodec 调用接口

@@ -52,7 +52,8 @@ func main() {
 
 	// 创建客户端
 	if cli == nil {
-		cli, err = rpc.NewClient(sd, center.SelectMode(center.Random), true)
+		//cli, err = rpc.NewClient(sd, center.SelectMode(center.Random), true)
+		cli, err = rpc.LongClient(sd, center.SelectMode(center.Random))
 		defer closeCli()
 		if err != nil {
 			log.Fatal(err)

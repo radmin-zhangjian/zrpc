@@ -113,6 +113,14 @@ func NewClient(sd center.ServeDiscovery, sm center.SelectAlgorithm, mode bool) (
 	return cli, nil
 }
 
+func ShortClient(sd center.ServeDiscovery, sm center.SelectAlgorithm) (*Client, error) {
+	return NewClient(sd, sm, false)
+}
+
+func LongClient(sd center.ServeDiscovery, sm center.SelectAlgorithm) (*Client, error) {
+	return NewClient(sd, sm, true)
+}
+
 // Call 同步RPC客户端
 func (c *Client) Call(serviceMethod string, args any, reply any) error {
 	call := <-c.Go(serviceMethod, args, reply, make(chan *Call, 1)).Done

@@ -25,7 +25,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	// 注册服务
+	// 注册服务  mode=false 短连接模式  mode=true 长连接模式
 	router := http.RegServe(sd, center.SelectMode(center.RoundRobin), false)
 	// 启动http服务
 	http.HttpServer(router)

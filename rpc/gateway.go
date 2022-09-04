@@ -58,23 +58,41 @@ func send(c *gin.Context, sd center.ServeDiscovery, selectMode center.SelectAlgo
 	}
 	api := servicePath + "." + strings.ToUpper(serviceMethod[:1]) + serviceMethod[1:]
 
-	// 长连接 或者 短连接  当前为短连接模式
-	//if client == nil {
-	nc, err := NewClient(sd, selectMode, mode)
-	if err != nil {
-		if err == ErrDiscovery {
-			result.Code = 1000
-			result.Data = ""
-			result.Msg = err.Error()
-			c.JSON(http.StatusOK, result)
-		} else {
-			time.Sleep(2 * time.Second)
-			send(c, sd, selectMode, mode, wg)
+	if mode == false {
+		// 短连接模式
+		nc, err := ShortClient(sd, selectMode)
+		if err != nil {
+			if err == ErrDiscovery {
+				result.Code = 1000
+				result.Data = ""
+				result.Msg = err.Error()
+				c.JSON(http.StatusOK, result)
+			} else {
+				time.Sleep(2 * time.Second)
+				send(c, sd, selectMode, mode, wg)
+			}
+			return
 		}
-		return
+		client = nc
+	} else {
+		// 长连接模式
+		if client == nil {
+			nc, err := LongClient(sd, selectMode)
+			if err != nil {
+				if err == ErrDiscovery {
+					result.Code = 1000
+					result.Data = ""
+					result.Msg = err.Error()
+					c.JSON(http.StatusOK, result)
+				} else {
+					time.Sleep(2 * time.Second)
+					send(c, sd, selectMode, mode, wg)
+				}
+				return
+			}
+			client = nc
+		}
 	}
-	client = nc
-	//}
 
 	var reply any
 	call := client.Go(api, args, &reply, nil)
