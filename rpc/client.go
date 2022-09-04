@@ -164,9 +164,11 @@ func (c *Client) send(call *Call) {
 		v := reflect.ValueOf(call.Args)
 		t := reflect.TypeOf(call.Args)
 		argNum := v.NumField()
+		c.mutex.Lock()
 		for i := 0; i < argNum; i++ {
 			mapArgs[t.Field(i).Name] = v.Field(i).Interface()
 		}
+		c.mutex.Unlock()
 		inArgs = mapArgs
 	} else if argsKind == reflect.Map {
 		inArgs = call.Args
