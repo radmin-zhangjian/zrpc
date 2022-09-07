@@ -38,8 +38,11 @@ func main() {
 
 	// 创建客户端
 	if cli == nil {
-		cli = rpcp.NewClient(sd, center.SelectMode(center.Random), true)
+		cli, err = rpcp.NewClient(sd, center.SelectMode(center.Random), true)
 		defer closeCli()
+		if err != nil {
+			log.Fatal(err)
+		}
 	}
 
 	// 压测

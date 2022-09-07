@@ -160,7 +160,7 @@ func (server *Server) register(rcvr any, name string) error {
 	return nil
 }
 
-func (server *Server) close(lis net.Listener) {
+func (server *Server) Close(lis net.Listener) {
 	server.sd.Close(server.addr)
 	lis.Close()
 }
@@ -170,7 +170,7 @@ func (server *Server) Server() (lis net.Listener) {
 	lis, e := net.Listen("tcp", server.addr)
 	if e != nil {
 		log.Fatalf("监听 %s err :%v", server.addr, e)
-		server.close(lis)
+		server.Close(lis)
 		return
 	}
 
@@ -184,7 +184,7 @@ func (server *Server) Server() (lis net.Listener) {
 
 // Accept 监听tcp
 func (server *Server) Accept(lis net.Listener) {
-	defer server.close(lis)
+	defer server.Close(lis)
 	for {
 		conn, err := lis.Accept()
 		if err != nil {

@@ -41,6 +41,13 @@ type Server struct {
 	io         ServerIo
 }
 
+// Serve 服务
+type Serve struct {
+	codec      ServerCodec
+	io         ServerIo
+	serviceMap sync.Map
+}
+
 type methodType struct {
 	method  reflect.Method
 	ArgType reflect.Type
@@ -152,7 +159,7 @@ func (server *Server) register(rcvr any, name string) error {
 	return nil
 }
 
-func (server *Server) close(lis net.Listener) {
+func (server *Server) Close(lis net.Listener) {
 	server.sd.Close(server.addr)
 	lis.Close()
 }
@@ -162,10 +169,10 @@ func (server *Server) Serve() (lis net.Listener) {
 	lis, e := net.Listen("tcp", server.addr)
 	if e != nil {
 		log.Fatalf("监听 %s err :%v", server.addr, e)
-		server.close(lis)
+		server.Close(lis)
 		return
 	}
-	defer server.close(lis)
+	defer server.Close(lis)
 
 	// 注册服务中心
 	server.sd.ServeRegister(server.addr)
@@ -191,37 +198,37 @@ func (server *Server) Accept(lis net.Listener) {
 }
 
 func (server *Server) ServerConn(codec ServerCodec, zio ServerIo) {
-	server.io = zio
-	server.codec = codec
-	server.ServeCodec()
+	serve := &Serve{codec: codec, io: zio}
+	serve.serviceMap = server.serviceMap
+	go serve.ServeCodec()
 }
 
 // ServeCodec 调用接口
-func (server *Server) ServeCodec() {
+func (serve *Serve) ServeCodec() {
 	sending := new(sync.Mutex)
 	wg := new(sync.WaitGroup)
 	for {
-		response, svc, mtype, keepReading, req, err := server.readRequest()
+		response, svc, mtype, keepReading, req, err := serve.readRequest()
 		if err != "" {
 			if !keepReading {
 				break
 			}
 			if !req {
-				server.sendResponse(response, sending, err)
+				serve.sendResponse(response, sending, err)
 			}
 			continue
 		}
 		wg.Add(1)
-		go server.call(response, svc, mtype, sending, wg)
+		go serve.call(response, svc, mtype, sending, wg)
 	}
 	wg.Wait()
-	server.io.Close()
+	serve.io.Close()
 }
 
 // 读取并解析参数
-func (server *Server) readRequest() (response *pd.Response, svc *service, mtype *methodType, keepReading bool, req bool, err string) {
+func (serve *Serve) readRequest() (response *pd.Response, svc *service, mtype *methodType, keepReading bool, req bool, err string) {
 	// 使用RPC方式读取数据
-	b, errR := server.io.Read()
+	b, errR := serve.io.Read()
 	if errR != nil {
 		err = errR.Error()
 		req = true
@@ -232,7 +239,7 @@ func (server *Server) readRequest() (response *pd.Response, svc *service, mtype 
 	}
 
 	// 数据解码
-	res, errC := server.codec.Decoder(b)
+	res, errC := serve.codec.Decoder(b)
 	response = &res
 	if errC != nil {
 		err = errR.Error()
@@ -262,7 +269,7 @@ func (server *Server) readRequest() (response *pd.Response, svc *service, mtype 
 	//method, _ = rType.MethodByName(methodName)
 
 	// 查询注册的方法
-	svci, ok := server.serviceMap.Load(serviceName)
+	svci, ok := serve.serviceMap.Load(serviceName)
 	if !ok {
 		err = errors.New("rpc: can't find service " + response.ServiceMethod).Error()
 		return
@@ -275,14 +282,14 @@ func (server *Server) readRequest() (response *pd.Response, svc *service, mtype 
 }
 
 // 结果返回客户端
-func (server *Server) call(response *pd.Response, svc *service, mtype *methodType, sending *sync.Mutex, wg *sync.WaitGroup) {
+func (serve *Serve) call(response *pd.Response, svc *service, mtype *methodType, sending *sync.Mutex, wg *sync.WaitGroup) {
 	defer wg.Done()
 
 	// 捕获业务程序异常 防止崩溃
 	defer func() {
 		if err := recover(); err != nil {
 			e := err.(error)
-			server.sendResponse(response, sending, e.Error())
+			serve.sendResponse(response, sending, e.Error())
 			return
 		}
 	}()
@@ -314,20 +321,20 @@ func (server *Server) call(response *pd.Response, svc *service, mtype *methodTyp
 	response.Reply = reply.(*anypb.Any)
 	response.Error = errReturn
 	// 发送客户端
-	server.sendResponse(response, sending, errReturn)
+	serve.sendResponse(response, sending, errReturn)
 }
 
-func (server *Server) sendResponse(response *pd.Response, sending *sync.Mutex, errReturn string) {
+func (serve *Serve) sendResponse(response *pd.Response, sending *sync.Mutex, errReturn string) {
 	sending.Lock()
 	// 数据编码，返回给客户端
 	respRPCData := pd.Response{ServiceMethod: response.ServiceMethod, Reply: response.Reply, Seq: response.Seq, Error: errReturn}
-	bytes, errE := server.codec.Encoder(respRPCData)
+	bytes, errE := serve.codec.Encoder(respRPCData)
 	if errE != nil {
 		//return
 	}
 
 	// 将服务端编码后的数据，写出到客户端
-	err := server.io.Write(bytes)
+	err := serve.io.Write(bytes)
 	if err != nil {
 		return
 	}

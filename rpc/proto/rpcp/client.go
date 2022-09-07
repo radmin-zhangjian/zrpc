@@ -16,6 +16,7 @@ import (
 
 var debugLog = false
 var ErrShutdown = errors.New("connection is shut down")
+var ErrDiscovery = errors.New("service not found")
 
 type ClientCodec interface {
 	Encoder(pd.Response) ([]byte, error)
@@ -57,9 +58,12 @@ type Client struct {
 }
 
 // ClientConn 构造方法
-func ClientConn(sd center.ServeDiscovery, sm center.SelectAlgorithm) net.Conn {
+func ClientConn(sd center.ServeDiscovery, sm center.SelectAlgorithm) (net.Conn, error) {
 	// 发现服务
-	disArrs := sd.ServeDiscovery()
+	disArrs, err := sd.ServeDiscovery()
+	if err != nil {
+		return nil, ErrDiscovery
+	}
 
 	// 路由/负载均衡
 	addr := sm.Algorithm(disArrs)
@@ -72,7 +76,7 @@ func ClientConn(sd center.ServeDiscovery, sm center.SelectAlgorithm) net.Conn {
 	if err != nil {
 		fmt.Println("err")
 	}
-	return conn
+	return conn, nil
 }
 
 // ClientNew 构造方法
@@ -87,9 +91,12 @@ func ClientNew(conn net.Conn, codec ClientCodec, zio ClientIo, mode bool) *Clien
 }
 
 // NewClient 构造方法
-func NewClient(sd center.ServeDiscovery, sm center.SelectAlgorithm, mode bool) *Client {
+func NewClient(sd center.ServeDiscovery, sm center.SelectAlgorithm, mode bool) (*Client, error) {
 	// 发现服务
-	disArrs := sd.ServeDiscovery()
+	disArrs, err := sd.ServeDiscovery()
+	if err != nil {
+		return nil, ErrDiscovery
+	}
 
 	// 路由/负载均衡
 	addr := sm.Algorithm(disArrs)
@@ -105,7 +112,7 @@ func NewClient(sd center.ServeDiscovery, sm center.SelectAlgorithm, mode bool) *
 
 	// 创建客户端对象
 	client := ClientNew(conn, pcd.New(conn), zio.NewSession(conn), mode)
-	return client
+	return client, nil
 }
 
 // Call 同步RPC客户端
