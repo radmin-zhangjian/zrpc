@@ -119,6 +119,10 @@ func (wsc *connection) Reader() {
 		//log.Printf("message: %#v", wsc.data)
 
 		switch wsc.data.Type {
+		case "ping":
+			wsc.data.Type = "pong"
+			dataByte, _ := json.Marshal(wsc.data)
+			h.broadcast <- dataByte
 		case "login":
 			wsc.data.Type = "login"
 			dataByte, _ := json.Marshal(wsc.data)

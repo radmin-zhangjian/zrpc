@@ -8,37 +8,132 @@
    <button type="button" id="btn_send" class="btn btn-info" onclick="fun_sendto();">发送（ctrl+回车）</button>
    <script type="text/javascript" src="https://dss0.bdstatic.com/5aV1bjqh_Q23odCf/static/superman/js/lib/jquery-1-edb203c114.10.2.js"></script>
       <script type="text/javascript">
-        var ws = new WebSocket("ws://localhost:9090/ping");
-        //连接打开时触发
-        ws.onopen = function(evt) {
-            console.log("Connection open ...");
-            ws.send("Hello WebSockets!");
-            $('#message').append("已连接<br>")
-        };
+        // var ws = new WebSocket("ws://localhost:9090/ping");
+        // //连接打开时触发
+        // ws.onopen = function(evt) {
+        //     console.log("Connection open ...");
+        //     ws.send("Hello WebSockets!");
+        //     $('#message').append("已连接<br>")
+        // };
+        //
+        // //接收到消息时触发
+        // ws.onmessage = function(evt) {
+        //     console.log("Received Message: " + evt.data);
+        //     if (evt.data != "Hello WebSockets!") {
+        //         $('#message').append(evt.data+"<br>")
+        //     }
+        // };
+        //
+        // //连接关闭时触发
+        // ws.onclose = function(evt) {
+        //     ws.send("close");
+        //     console.log("Connection closed.");
+        //     $('#message').append("连接关闭<br>")
+        // };
+        //
+        // function fun_sendto(){
+        //     var content = $("#inp_send").val();
+        //     var name = $("#inp_name").val();
+        //     var json = JSON.stringify({"type": "user", "user": name, "message": content});
+        //     console.log(json)
+        //     ws.send(json);
+        // }
+      </script>
 
-        //接收到消息时触发
-        ws.onmessage = function(evt) {
-            console.log("Received Message: " + evt.data);
-            if (evt.data != "Hello WebSockets!") {
-                $('#message').append(evt.data+"<br>")
+      <script>
+         var ws
+         window.onload=function() {
+            ws = createWebSocket()
+            print("ws:", ws)
+            var timeout = 5000
+            var heartCheck = {
+               sendTimeoutObj:null,
+               serverTimeoutObj:null,
+               // 重置心跳发送
+               reset: function() {
+                  clearTimeout(this.sendTimeoutObj)
+                  clearTimeout(this.serverTimeoutObj)
+               },
+               // 发送心跳
+               start: function() {
+                  // 定时发送心跳
+                  this.sendTimeoutObj = setTimeout(()=>{
+                     var json = JSON.stringify({"type": "ping", "message": "ping"});
+                     ws.send(json)
+                     // 正常来说，当发送完心跳包后，服务端会响应即在onmessage中做出响应，并清除此心跳包发送新的心跳包，
+                     // 如果没有做出响应的，则达到超时时间主动关闭websocket，开始重连
+                     this.serverTimeoutObj = setTimeout(()=> {
+                        ws.close()
+                     }, timeout)
+                  }, timeout)
+               }
             }
-        };
 
-        //连接关闭时触发
-        ws.onclose = function(evt) {
-            ws.send("close");
-            console.log("Connection closed.");
-            $('#message').append("连接关闭<br>")
-        };
+            // 创建websocket
+            function createWebSocket() {
+               try{
+                  var ws = new WebSocket("ws://127.0.0.1:9090/ping")
+                  init(ws)
+                  return ws
+               } catch(e) {
+                  console.log("connect exception")
+                  return null
+               }
+            }
 
-        function fun_sendto(){
+            // 初始化websocket
+            function init(ws) {
+               // websocket打开时
+               ws.onopen = function() {
+                  console.log("WebSocket open")
+                  heartCheck.reset()
+                  heartCheck.start()
+               }
+               ws.onclose = function(response) {
+                  console.log("onclose:", response)
+                  reconnect()
+               }
+               // 接收消息
+               ws.onmessage = function(response) {
+                  // console.log("onmessage:", response)
+                  console.log("Received Message: " + response.data);
+                  var obj=JSON.parse(response.data);
+                  if (obj.type != "pong") {
+                     $('#message').append(response.data+"<br>")
+                  }
+                  heartCheck.reset()
+                  heartCheck.start()
+               }
+               ws.onerror = function(response) {
+                  console.log("onerror:", response)
+               }
+            }
+
+            var isConnected = false
+            var reconnectTimeout = null
+            // 重连
+            function reconnect() {
+               // 当前正在操作连接的时候就不进行连接，防止出现重复连接的情况
+               if (isConnected) return
+               isConnected = true
+               reconnectTimeout && clearTimeout(reconnectTimeout)
+               reconnectTimeout = setTimeout(()=>{
+                  heartCheck.reset()
+                  isConnected = false
+                  ws = createWebSocket()
+               }, timeout)
+            }
+         }
+
+         function fun_sendto() {
             var content = $("#inp_send").val();
             var name = $("#inp_name").val();
             var json = JSON.stringify({"type": "user", "user": name, "message": content});
-            console.log(json)
+            console.log("json: " + json)
             ws.send(json);
-        }
+         }
       </script>
+
    </head>
    <body>
     <div id="message"></div>
