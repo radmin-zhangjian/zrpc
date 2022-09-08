@@ -2,6 +2,7 @@
 <html>
    <head>
    <meta charset="utf-8">
+   <meta name="viewport" content="width=device-width, initial-scale=1.0">
    <title>长连接测试</title>
    <div><input id="inp_name" class="form-control" style="height:20px;" placeholder="姓名"></input></div>
    <textarea id="inp_send" class="form-control" style="height:100px;" placeholder="发送的内容"></textarea>
@@ -44,7 +45,7 @@
          var ws
          window.onload=function() {
             ws = createWebSocket()
-            print("ws:", ws)
+            // print("ws:", ws)
             var timeout = 5000
             var heartCheck = {
                sendTimeoutObj:null,
