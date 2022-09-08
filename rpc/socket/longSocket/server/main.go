@@ -4,7 +4,6 @@ import (
 	"flag"
 	"log"
 	"net"
-	"sync"
 	"zrpc/example/service"
 	v1 "zrpc/example/v1"
 	v2 "zrpc/example/v2"
@@ -46,7 +45,7 @@ func main() {
 	defer srv.Close(lis)
 
 	// tpc连接map
-	longSocket.ConnMap = make(map[string]*zio.Session)
+	longSocket.ConnMap = make(map[string]*longSocket.Serve)
 
 	// 开始监听
 	accrpt(srv, lis)
@@ -64,13 +63,6 @@ func accrpt(srv *longSocket.Server, lis net.Listener) {
 		}
 
 		session := zio.NewSession(conn)
-
-		// 在线
-		mu := new(sync.Mutex)
-		mu.Lock()
-		longSocket.ConnMap[conn.RemoteAddr().String()] = session
-		mu.Unlock()
-
 		srv.Serve(msgpack.New(conn), session, conn)
 	}
 }

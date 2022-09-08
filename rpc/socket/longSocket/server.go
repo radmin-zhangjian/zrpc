@@ -19,6 +19,9 @@ import (
 
 var typeOfError = reflect.TypeOf((*error)(nil)).Elem()
 
+// ConnMap 用来记录所有的客户端连接
+var ConnMap map[string]*Serve
+
 type ServerCodec interface {
 	Encoder(zio.Response) ([]byte, error)
 	Decoder(b []byte) (zio.Response, error)
@@ -43,6 +46,7 @@ type Serve struct {
 	io         ServerIo
 	serviceMap sync.Map
 	conn       net.Conn
+	output     chan []byte
 }
 
 type methodType struct {
@@ -195,9 +199,17 @@ func (server *Server) Accept(lis net.Listener) {
 
 // Serve 建立服务
 func (server *Server) Serve(codec ServerCodec, zio ServerIo, conn net.Conn) {
-	serve := &Serve{codec: codec, io: zio, conn: conn}
+	serve := &Serve{codec: codec, io: zio, conn: conn, output: make(chan []byte, 128)}
 	serve.serviceMap = server.serviceMap
+
+	// 在线连接
+	mu := new(sync.Mutex)
+	mu.Lock()
+	ConnMap[conn.RemoteAddr().String()] = serve
+	mu.Unlock()
+
 	go serve.ServeCodec()
+	go serve.Writer()
 }
 
 // ServeCodec 调用接口
@@ -219,7 +231,7 @@ func (serve *Serve) ServeCodec() {
 
 	key := serve.conn.RemoteAddr().String()
 	if c, ok := ConnMap[key]; ok {
-		if c == serve.io {
+		if c == serve {
 			delete(ConnMap, key)
 		}
 	}
@@ -323,12 +335,29 @@ func (serve *Serve) sendResponse(response *zio.Response, sending *sync.Mutex, er
 	}
 	for _, c := range ConnMap {
 		// 将服务端编码后的数据，写出到客户端
-		err := c.Write(bytes)
+		//err := c.io.Write(bytes)
+		//if err != nil {
+		//	continue
+		//}
+		select {
+		case c.output <- bytes:
+		default:
+			delete(ConnMap, c.conn.RemoteAddr().String())
+			close(c.output)
+		}
+	}
+	sending.Unlock()
+}
+
+func (serve *Serve) Writer() {
+	for message := range serve.output {
+		// 将服务端编码后的数据，写出到客户端
+		err := serve.io.Write(message)
 		if err != nil {
 			continue
 		}
 	}
-	sending.Unlock()
+	//serve.io.Close()
 }
 
 // 包装参数给方法
@@ -386,6 +415,3 @@ func getArgsRValue(mtype *methodType, args any) reflect.Value {
 	}
 	return v.Elem()
 }
-
-// ConnMap 用来记录所有的客户端连接
-var ConnMap map[string]*zio.Session
