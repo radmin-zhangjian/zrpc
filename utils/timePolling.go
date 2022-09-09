@@ -16,6 +16,7 @@ type TimePolling struct {
 	closed    chan bool
 	taskClose chan bool
 	timeClose chan bool
+	ticker    *time.Ticker
 }
 
 type TaskFunc func(args ...any)
@@ -68,20 +69,24 @@ func (tp *TimePolling) Run() {
 	go tp.timeLoop()
 	select {
 	case <-tp.closed:
-		tp.taskClose <- true
 		tp.timeClose <- true
+		tp.taskClose <- true
 	}
+	close(tp.taskClose)
+	close(tp.timeClose)
 }
 
 func (tp *TimePolling) taskLoop() {
 	defer func() {
 		fmt.Println("taskLoop exit")
 	}()
+
 	for {
 		select {
 		case <-tp.taskClose:
 			return
 		case <-tp.next:
+			tp.mu.Lock()
 			tasks := tp.slots[tp.curIndex]
 			if len(tasks) > 0 {
 				for k, v := range tasks {
@@ -93,6 +98,7 @@ func (tp *TimePolling) taskLoop() {
 					}
 				}
 			}
+			tp.mu.Unlock()
 		}
 	}
 }
@@ -101,14 +107,17 @@ func (tp *TimePolling) timeLoop() {
 	defer func() {
 		fmt.Println("timeLoop exit")
 	}()
-	ticker := time.NewTicker(time.Second)
-	defer ticker.Stop()
+
+	tp.ticker = time.NewTicker(time.Second)
+	defer tp.ticker.Stop()
+
 	for {
 		select {
 		case <-tp.timeClose:
+			close(tp.next)
 			return
-		case <-ticker.C:
-			log.Printf(time.Now().Format("2006-01-02 15:04:05"))
+		case <-tp.ticker.C:
+			//log.Printf(time.Now().Format("2006-01-02 15:04:05"))
 			if tp.curIndex >= 3599 {
 				tp.curIndex = 0
 			} else {
@@ -121,4 +130,5 @@ func (tp *TimePolling) timeLoop() {
 
 func (tp *TimePolling) Close() {
 	tp.closed <- true
+	close(tp.closed)
 }
