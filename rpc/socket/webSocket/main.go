@@ -85,7 +85,10 @@ func (h *hub) Connections(data []byte) {
 		case c.output <- data:
 		default:
 			// 防止死循环
+			mu := new(sync.Mutex)
+			mu.Lock()
 			delete(h.connections, c)
+			mu.Unlock()
 			close(c.output)
 		}
 	}

@@ -229,10 +229,13 @@ func (serve *Serve) ServeCodec() {
 		serve.call(response, svc, mtype, sending)
 	}
 
+	mu := new(sync.Mutex)
 	key := serve.conn.RemoteAddr().String()
 	if c, ok := ConnMap[key]; ok {
 		if c == serve {
+			mu.Lock()
 			delete(ConnMap, key)
+			mu.Unlock()
 		}
 	}
 

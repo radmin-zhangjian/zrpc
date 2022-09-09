@@ -99,7 +99,10 @@ func (tp *TimePolling) taskLoop() {
 				for k, v := range tasks {
 					if v.cycleNum == 0 {
 						go v.method(v.params...)
+						mu := new(sync.Mutex)
+						mu.Lock()
 						delete(tasks, k)
+						mu.Unlock()
 					} else {
 						v.cycleNum--
 					}
