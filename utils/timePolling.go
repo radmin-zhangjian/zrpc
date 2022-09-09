@@ -9,7 +9,7 @@ import (
 
 type TimePolling struct {
 	curIndex  int
-	slots     [3600]map[string]*Task
+	slots     []map[string]*Task
 	sTime     time.Time
 	mu        sync.Mutex
 	next      chan bool
@@ -17,6 +17,7 @@ type TimePolling struct {
 	taskClose chan bool
 	timeClose chan bool
 	ticker    *time.Ticker
+	cycle     int64
 }
 
 type TaskFunc func(args ...any)
@@ -27,7 +28,10 @@ type Task struct {
 	params   []any
 }
 
-func NewPolling() (polling *TimePolling) {
+func NewPolling(cycle int64) (polling *TimePolling) {
+	if cycle == 0 {
+		cycle = 3600
+	}
 	polling = &TimePolling{
 		curIndex:  0,
 		sTime:     time.Now(),
@@ -35,10 +39,14 @@ func NewPolling() (polling *TimePolling) {
 		closed:    make(chan bool),
 		taskClose: make(chan bool),
 		timeClose: make(chan bool),
+		cycle:     cycle,
 	}
-	for i := 0; i < 3600; i++ {
-		polling.slots[i] = make(map[string]*Task)
+	var i int64
+	for i = 0; i < cycle; i++ {
+		//polling.slots[i] = make(map[string]*Task)
+		polling.slots = append(polling.slots, make(map[string]*Task))
 	}
+	log.Printf("polling.slots: %v", polling.slots)
 	return
 }
 
@@ -48,14 +56,14 @@ func (tp *TimePolling) Register(seconds time.Duration, key string, method TaskFu
 		log.Printf("Time error")
 	}
 	subSecond := t.Unix() - tp.sTime.Unix()
-	cycleNum := int(subSecond / 3600)
+	cycleNum := int(subSecond / tp.cycle)
 	task := &Task{
 		cycleNum: cycleNum,
 		method:   method,
 		params:   args,
 	}
 	tp.mu.Lock()
-	curIndex := subSecond % 3600
+	curIndex := subSecond % tp.cycle
 	tasks := tp.slots[curIndex]
 	if _, ok := tasks[key]; ok {
 		log.Printf("task key exist")

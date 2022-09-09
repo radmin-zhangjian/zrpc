@@ -11,7 +11,7 @@ func t2(args ...any) {
 }
 
 func main() {
-	tp := utils.NewPolling()
+	tp := utils.NewPolling(60)
 
 	tp.Register(5, "t1", func(args ...any) {
 		fmt.Println(args...)
