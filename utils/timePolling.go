@@ -17,7 +17,7 @@ type TimePolling struct {
 	taskClose chan bool
 	timeClose chan bool
 	ticker    *time.Ticker
-	cycle     int64
+	cycle     int
 }
 
 type TaskFunc func(args ...any)
@@ -28,7 +28,7 @@ type Task struct {
 	params   []any
 }
 
-func NewPolling(cycle int64) (polling *TimePolling) {
+func NewPolling(cycle int) (polling *TimePolling) {
 	if cycle == 0 {
 		cycle = 3600
 	}
@@ -41,12 +41,10 @@ func NewPolling(cycle int64) (polling *TimePolling) {
 		timeClose: make(chan bool),
 		cycle:     cycle,
 	}
-	var i int64
-	for i = 0; i < cycle; i++ {
+	for i := 0; i < cycle; i++ {
 		//polling.slots[i] = make(map[string]*Task)
 		polling.slots = append(polling.slots, make(map[string]*Task))
 	}
-	log.Printf("polling.slots: %v", polling.slots)
 	return
 }
 
@@ -56,14 +54,15 @@ func (tp *TimePolling) Register(seconds time.Duration, key string, method TaskFu
 		log.Printf("Time error")
 	}
 	subSecond := t.Unix() - tp.sTime.Unix()
-	cycleNum := int(subSecond / tp.cycle)
+	cycle := int64(tp.cycle)
+	cycleNum := int(subSecond / cycle)
 	task := &Task{
 		cycleNum: cycleNum,
 		method:   method,
 		params:   args,
 	}
 	tp.mu.Lock()
-	curIndex := subSecond % tp.cycle
+	curIndex := subSecond % cycle
 	tasks := tp.slots[curIndex]
 	if _, ok := tasks[key]; ok {
 		log.Printf("task key exist")
@@ -126,7 +125,7 @@ func (tp *TimePolling) timeLoop() {
 			return
 		case <-tp.ticker.C:
 			//log.Printf(time.Now().Format("2006-01-02 15:04:05"))
-			if tp.curIndex >= 3599 {
+			if tp.curIndex >= tp.cycle-1 {
 				tp.curIndex = 0
 			} else {
 				tp.curIndex++

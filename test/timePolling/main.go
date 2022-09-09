@@ -18,9 +18,10 @@ func main() {
 	}, []any{1, 2, 3})
 	tp.Register(6, "t2", t2, []any{5, 6, 7})
 	tp.Register(8, "t2", t2, []any{8, 9, 0})
+	tp.Register(61, "t2", t2, []any{8, 9, 0})
 
 	//40秒后关闭
-	time.AfterFunc(time.Second*10, func() {
+	time.AfterFunc(time.Second*120, func() {
 		tp.Close()
 	})
 
