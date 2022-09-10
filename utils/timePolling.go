@@ -1,8 +1,8 @@
 package utils
 
 import (
+	"errors"
 	"fmt"
-	"log"
 	"sync"
 	"time"
 )
@@ -48,10 +48,11 @@ func NewPolling(cycle int) (polling *TimePolling) {
 	return
 }
 
-func (tp *TimePolling) Register(seconds time.Duration, key string, method TaskFunc, args []any) {
+func (tp *TimePolling) Register(seconds time.Duration, key string, method TaskFunc, args []any) (err error) {
 	t := time.Now().Add(time.Second * seconds)
 	if tp.sTime.After(t) {
-		log.Printf("Time error")
+		err = errors.New("time error")
+		return
 	}
 	subSecond := t.Unix() - tp.sTime.Unix()
 	cycle := int64(tp.cycle)
@@ -65,10 +66,12 @@ func (tp *TimePolling) Register(seconds time.Duration, key string, method TaskFu
 	curIndex := subSecond % cycle
 	tasks := tp.slots[curIndex]
 	if _, ok := tasks[key]; ok {
-		log.Printf("task key exist")
+		err = errors.New("task key exist")
+		return
 	}
 	tasks[key] = task
 	tp.mu.Unlock()
+	return nil
 }
 
 func (tp *TimePolling) Run() {
