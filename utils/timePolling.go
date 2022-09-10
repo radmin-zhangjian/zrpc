@@ -3,6 +3,7 @@ package utils
 import (
 	"errors"
 	"fmt"
+	"log"
 	"sync"
 	"time"
 )
@@ -35,7 +36,7 @@ func NewPolling(cycle int) (polling *TimePolling) {
 	polling = &TimePolling{
 		curIndex:  0,
 		sTime:     time.Now(),
-		next:      make(chan bool),
+		next:      make(chan bool, 10),
 		closed:    make(chan bool),
 		taskClose: make(chan bool),
 		timeClose: make(chan bool),
@@ -102,10 +103,7 @@ func (tp *TimePolling) taskLoop() {
 				for k, v := range tasks {
 					if v.cycleNum == 0 {
 						go v.method(v.params...)
-						mu := new(sync.Mutex)
-						mu.Lock()
 						delete(tasks, k)
-						mu.Unlock()
 					} else {
 						v.cycleNum--
 					}
@@ -130,7 +128,7 @@ func (tp *TimePolling) timeLoop() {
 			close(tp.next)
 			return
 		case <-tp.ticker.C:
-			//log.Printf(time.Now().Format("2006-01-02 15:04:05"))
+			log.Printf(time.Now().Format("2006-01-02 15:04:05"))
 			if tp.curIndex >= tp.cycle-1 {
 				tp.curIndex = 0
 			} else {

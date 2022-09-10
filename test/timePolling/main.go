@@ -7,6 +7,7 @@ import (
 )
 
 func t2(args ...any) {
+	time.Sleep(8 * time.Second)
 	fmt.Println(args...)
 }
 
