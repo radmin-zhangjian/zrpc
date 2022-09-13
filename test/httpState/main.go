@@ -43,9 +43,11 @@ func get(c *gin.Context) {
 	mu.Unlock()
 
 	defer func() {
-		mu.Lock()
-		delete(chanMap, key)
-		mu.Unlock()
+		if _, ok := chanMap[key]; ok {
+			mu.Lock()
+			delete(chanMap, key)
+			mu.Unlock()
+		}
 		close(statusChan)
 		//RedisDel(key)
 	}()
