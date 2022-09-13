@@ -13,7 +13,7 @@ type TimePolling struct {
 	slots     []map[string]*Task
 	sTime     time.Time
 	mu        sync.Mutex
-	next      chan bool
+	next      chan int
 	closed    chan bool
 	taskClose chan bool
 	timeClose chan bool
@@ -36,7 +36,7 @@ func NewPolling(cycle int) (polling *TimePolling) {
 	polling = &TimePolling{
 		curIndex:  0,
 		sTime:     time.Now(),
-		next:      make(chan bool, 10),
+		next:      make(chan int, 10),
 		closed:    make(chan bool),
 		taskClose: make(chan bool),
 		timeClose: make(chan bool),
@@ -96,20 +96,21 @@ func (tp *TimePolling) taskLoop() {
 		select {
 		case <-tp.taskClose:
 			return
-		case <-tp.next:
-			tp.mu.Lock()
-			tasks := tp.slots[tp.curIndex]
+		case index := <-tp.next:
+			//tasks := tp.slots[tp.curIndex]
+			tasks := tp.slots[index]
 			if len(tasks) > 0 {
 				for k, v := range tasks {
 					if v.cycleNum == 0 {
 						go v.method(v.params...)
+						tp.mu.Lock()
 						delete(tasks, k)
+						tp.mu.Unlock()
 					} else {
 						v.cycleNum--
 					}
 				}
 			}
-			tp.mu.Unlock()
 		}
 	}
 }
@@ -134,7 +135,7 @@ func (tp *TimePolling) timeLoop() {
 			} else {
 				tp.curIndex++
 			}
-			tp.next <- true
+			tp.next <- tp.curIndex
 		}
 	}
 }

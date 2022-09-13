@@ -82,8 +82,7 @@ func set(c *gin.Context) {
 
 	// 返回
 	var result = make(map[string]any)
-	result["code"] = 1000
-	result["msg"] = "error"
+	result["data"] = nil
 
 	rKey := prefix + key
 	IP, err := redis.GetString(rKey)
@@ -131,6 +130,11 @@ func main() {
 	router := gin.New()
 	router.Use(gin.Logger())
 	router.Use(gin.Recovery())
+
+	router.LoadHTMLGlob("test/httpState/templates/*")
+	router.GET("/httpState.html", func(c *gin.Context) {
+		c.HTML(http.StatusOK, "httpState.html", gin.H{})
+	})
 	router.GET("/get", get)
 	router.GET("/set", set)
 	router.POST("/chanSet", chanSet)

@@ -1,0 +1,53 @@
+<!DOCTYPE HTML>
+<html>
+   <head>
+   <meta charset="utf-8">
+   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+   <title>长连接测试</title>
+   <div><input id="inp_name" class="form-control" style="height:20px;" placeholder="姓名"></input></div>
+   <textarea id="inp_send" class="form-control" style="height:100px;" placeholder="发送的内容"></textarea>
+   <button type="button" id="btn_send" class="btn btn-info" onclick="fun_sendto();">发送（ctrl+回车）</button>
+   <script type="text/javascript" src="https://dss0.bdstatic.com/5aV1bjqh_Q23odCf/static/superman/js/lib/jquery-1-edb203c114.10.2.js"></script>
+      <script type="text/javascript">
+         function fun_sendto() {
+            // var content = $("#inp_send").val();
+            // var name = $("#inp_name").val();
+            // var json = JSON.stringify({"type": "user", "user": name, "message": content});
+            // console.log("json: " + json)
+         }
+
+         $(function () {
+            $("button").click(function () {
+               var content = $("#inp_send").val();
+               var name = $("#inp_name").val();
+               $.get("http://localhost:10000/set?key=wwweee&value=" + content, function (response,status,xhr) {
+                  var result=JSON.stringify(response);
+                  console.log(response)
+                  console.log(response.code)
+                  // $('#message').append(result+"<br>")
+               })
+            })
+         })
+
+         function for_get(key = "wwweee"){
+            $.get("http://localhost:10000/get?key=" + key, function (response,status,xhr) {
+               var result=JSON.stringify(response);
+               console.log(response)
+               console.log(response.code)
+               fun_get(result)
+               for_get(key)
+            })
+         }
+
+         function fun_get(result) {
+            $('#message').append(result+"<br>")
+         }
+
+         for_get("wwweee")
+      </script>
+
+   </head>
+   <body>
+    <div id="message"></div>
+   </body>
+</html>
