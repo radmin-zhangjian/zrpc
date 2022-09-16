@@ -68,7 +68,9 @@ func (h *hub) Run() {
 		case wsc := <-h.unregister:
 			// 判断map里是否存在要删的数据
 			if _, ok := h.connections[wsc]; ok {
+				h.mu.Lock()
 				delete(h.connections, wsc)
+				h.mu.Unlock()
 				// 关闭连接管道
 				close(wsc.output)
 			}
