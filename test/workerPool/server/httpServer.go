@@ -25,7 +25,7 @@ func (s *Http) HttpServer(router *gin.Engine) {
 		Addr:         s.addr,
 		Handler:      router,
 		ReadTimeout:  30 * time.Second,
-		WriteTimeout: 30 * time.Second,
+		WriteTimeout: 90 * time.Second,
 	}
 	go func() {
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {

@@ -169,6 +169,7 @@ func ping(c *gin.Context) {
 		data_byte, _ := json.Marshal(wsc.data)
 		h.broadcast <- data_byte
 		h.unregister <- wsc
+		ws.Close()
 	}()
 }
 
