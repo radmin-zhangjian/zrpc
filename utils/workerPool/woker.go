@@ -24,14 +24,14 @@ var JobQueue = make(chan Job)
 type Worker struct {
 	WorkerPool chan chan Job
 	JobChannel chan Job
-	quit       chan bool
+	quit       chan struct{}
 }
 
 func NewWorker(workerPool chan chan Job) Worker {
 	return Worker{
 		WorkerPool: workerPool,
 		JobChannel: make(chan Job),
-		quit:       make(chan bool)}
+		quit:       make(chan struct{})}
 }
 
 // Start method starts the run loop for the worker, listening for a quit channel in
@@ -61,6 +61,6 @@ func (w Worker) Start() {
 // Stop signals the worker to stop listening for work requests.
 func (w Worker) Stop() {
 	go func() {
-		w.quit <- true
+		w.quit <- struct{}{}
 	}()
 }

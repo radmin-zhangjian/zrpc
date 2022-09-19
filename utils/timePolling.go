@@ -14,9 +14,9 @@ type TimePolling struct {
 	sTime     time.Time
 	mu        sync.Mutex
 	next      chan int
-	closed    chan bool
-	taskClose chan bool
-	timeClose chan bool
+	closed    chan struct{}
+	taskClose chan struct{}
+	timeClose chan struct{}
 	ticker    *time.Ticker
 	cycle     int
 }
@@ -37,9 +37,9 @@ func NewPolling(cycle int) (polling *TimePolling) {
 		curIndex:  0,
 		sTime:     time.Now(),
 		next:      make(chan int, 10),
-		closed:    make(chan bool),
-		taskClose: make(chan bool),
-		timeClose: make(chan bool),
+		closed:    make(chan struct{}),
+		taskClose: make(chan struct{}),
+		timeClose: make(chan struct{}),
 		cycle:     cycle,
 	}
 	for i := 0; i < cycle; i++ {
@@ -80,8 +80,8 @@ func (tp *TimePolling) Run() {
 	go tp.timeLoop()
 	select {
 	case <-tp.closed:
-		tp.timeClose <- true
-		tp.taskClose <- true
+		tp.timeClose <- struct{}{}
+		tp.taskClose <- struct{}{}
 	}
 	close(tp.taskClose)
 	close(tp.timeClose)
@@ -141,6 +141,6 @@ func (tp *TimePolling) timeLoop() {
 }
 
 func (tp *TimePolling) Close() {
-	tp.closed <- true
+	tp.closed <- struct{}{}
 	close(tp.closed)
 }

@@ -34,7 +34,7 @@ type connection struct {
 type hub struct {
 	mu sync.Mutex
 	// connection 连接
-	connections map[*connection]bool
+	connections map[*connection]struct{}
 	// 从服务器发送的信息
 	broadcast chan []byte
 	// 从连接器注册请求
@@ -44,7 +44,7 @@ type hub struct {
 }
 
 var h = &hub{
-	connections: make(map[*connection]bool),
+	connections: make(map[*connection]struct{}),
 	broadcast:   make(chan []byte),
 	register:    make(chan *connection),
 	unregister:  make(chan *connection),
@@ -55,7 +55,7 @@ func (h *hub) Run() {
 		select {
 		case wsc := <-h.register:
 			h.mu.Lock()
-			h.connections[wsc] = true
+			h.connections[wsc] = struct{}{}
 			h.mu.Unlock()
 			// 组装data数据
 			wsc.data.Ip = wsc.ws.RemoteAddr().String()
