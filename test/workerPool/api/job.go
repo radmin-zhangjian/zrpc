@@ -28,6 +28,7 @@ func To(c *gin.Context) {
 	c.Writer.Header().Add("Access-Control-Allow-Headers", "Content-Type")
 
 	i++
+	// 任务池
 	payload := Payload{num: i, id: 2}
 	work := workerPool.Job{Payload: payload.Task}
 	workerPool.JobQueue <- work

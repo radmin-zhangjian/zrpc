@@ -6,7 +6,9 @@ import (
 	"fmt"
 	pprofGin "github.com/gin-contrib/pprof"
 	"github.com/gin-gonic/gin"
+	"log"
 	_ "net/http/pprof"
+	"strconv"
 	"zrpc/rpc/center/redis"
 	"zrpc/test/workerPool/api"
 	"zrpc/test/workerPool/server"
@@ -34,7 +36,9 @@ func main() {
 	//}
 
 	// 开启工作池
-	dispatcher := workerPool.NewDispatcher(workerPool.MaxWorker)
+	MaxWorker, _ := strconv.Atoi(workerPool.MaxWorker)
+	log.Printf("MaxWorker: %d", MaxWorker)
+	dispatcher := workerPool.NewDispatcher(MaxWorker)
 	dispatcher.Run()
 	//log.Println("当前协程数：", runtime.NumGoroutine())
 

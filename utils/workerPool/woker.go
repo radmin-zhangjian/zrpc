@@ -2,13 +2,14 @@ package workerPool
 
 import (
 	"log"
+	"os"
 )
 
 var (
-	//MaxWorker = os.Getenv("MAX_WORKERS")
-	//MaxQueue  = os.Getenv("MAX_QUEUE")
-	MaxWorker = 10
-	MaxQueue  = 10
+	MaxWorker = os.Getenv("MAX_WORKERS")
+	MaxQueue  = os.Getenv("MAX_QUEUE")
+	//MaxWorker = 10
+	//MaxQueue  = 10
 )
 
 // Job represents the job to be run
