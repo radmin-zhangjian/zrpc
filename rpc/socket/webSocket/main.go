@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"flag"
 	"log"
 	"net/http"
 	"sync"
@@ -9,6 +10,8 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 )
+
+var addr = flag.String("addr", ":9090", "addr server")
 
 var upGrader = websocket.Upgrader{
 	ReadBufferSize:  1024, // 读的缓冲大小
@@ -138,6 +141,7 @@ func (wsc *connection) Reader() {
 			h.broadcast <- data_byte
 		case "logout":
 			wsc.data.Type = "logout"
+			wsc.data.Message = string("goodbye")
 			data_byte, _ := json.Marshal(wsc.data)
 			h.broadcast <- data_byte
 			h.unregister <- wsc
@@ -158,6 +162,8 @@ func ping(c *gin.Context) {
 		data:   new(Data),
 	}
 
+	log.Printf("wsc: %v", wsc)
+
 	// 注册
 	h.register <- wsc
 
@@ -166,6 +172,7 @@ func ping(c *gin.Context) {
 
 	defer func() {
 		wsc.data.Type = "logout"
+		wsc.data.Message = string("goodbye")
 		data_byte, _ := json.Marshal(wsc.data)
 		h.broadcast <- data_byte
 		h.unregister <- wsc
@@ -187,7 +194,11 @@ func setupRouter() *gin.Engine {
 }
 
 func main() {
+	// 解析参数
+	if !flag.Parsed() {
+		flag.Parse()
+	}
 	go h.Run()
 	r := setupRouter()
-	r.Run(":9090")
+	r.Run(*addr)
 }

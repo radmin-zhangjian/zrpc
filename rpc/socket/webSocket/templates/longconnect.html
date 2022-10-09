@@ -89,6 +89,7 @@
                   console.log("WebSocket open")
                   heartCheck.reset()
                   heartCheck.start()
+                  fun_login()
                }
                ws.onclose = function(response) {
                   console.log("onclose:", response)
@@ -124,6 +125,12 @@
                   ws = createWebSocket()
                }, timeout)
             }
+         }
+
+         function fun_login() {
+            var json = JSON.stringify({"type": "login", "user": "zhyu", "message": "You're welcome"});
+            console.log("json: " + json)
+            ws.send(json);
          }
 
          function fun_sendto() {
