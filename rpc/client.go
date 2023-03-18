@@ -77,8 +77,8 @@ func ClientConn(sd center.ServeDiscovery, sm center.SelectAlgorithm) (net.Conn, 
 	return conn, nil
 }
 
-// ClientNew 构造方法
-func ClientNew(conn net.Conn, codec ClientCodec, zio ClientIo, mode bool) *Client {
+// NewClient 构造方法
+func NewClient(conn net.Conn, codec ClientCodec, zio ClientIo, mode bool) *Client {
 	cli := &Client{io: zio, codec: codec, Conn: conn, pending: make(map[uint64]*Call)}
 	if mode == true {
 		go cli.input()
@@ -88,8 +88,8 @@ func ClientNew(conn net.Conn, codec ClientCodec, zio ClientIo, mode bool) *Clien
 	return cli
 }
 
-// NewClient 构造方法
-func NewClient(sd center.ServeDiscovery, sm center.SelectAlgorithm, mode bool) (*Client, error) {
+// ClientRpc 构造方法
+func ClientRpc(sd center.ServeDiscovery, sm center.SelectAlgorithm, mode bool) (*Client, error) {
 	// 发现服务
 	disArrs, err := sd.ServeDiscovery()
 	if err != nil {
@@ -109,16 +109,28 @@ func NewClient(sd center.ServeDiscovery, sm center.SelectAlgorithm, mode bool) (
 	}
 
 	// 创建客户端对象
-	cli := ClientNew(conn, msgpack.New(conn), zio.NewSession(conn), mode)
+	cli := NewClient(conn, msgpack.New(conn), zio.NewSession(conn), mode)
+	//cli := NewClient(conn, nil, nil, mode)
 	return cli, nil
 }
 
 func ShortClient(sd center.ServeDiscovery, sm center.SelectAlgorithm) (*Client, error) {
-	return NewClient(sd, sm, false)
+	return ClientRpc(sd, sm, false)
 }
 
 func LongClient(sd center.ServeDiscovery, sm center.SelectAlgorithm) (*Client, error) {
-	return NewClient(sd, sm, true)
+	return ClientRpc(sd, sm, true)
+}
+
+// SetOpt 自定义设置opt
+func (c *Client) SetOpt(opt any) *Client {
+	switch opt.(type) {
+	case ClientCodec:
+		c.codec = opt.(ClientCodec)
+	case ClientIo:
+		c.io = opt.(ClientIo)
+	}
+	return c
 }
 
 // Call 同步RPC客户端

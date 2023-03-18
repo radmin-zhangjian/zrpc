@@ -12,6 +12,8 @@ import (
 	v2 "zrpc/example/v2"
 	"zrpc/rpc"
 	"zrpc/rpc/center"
+	"zrpc/rpc/codec/msgpack"
+	"zrpc/rpc/zio"
 )
 
 var (
@@ -54,6 +56,7 @@ func main() {
 	if cli == nil {
 		//cli, err = rpc.NewClient(sd, center.SelectMode(center.Random), true)
 		cli, err = rpc.LongClient(sd, center.SelectMode(center.Random))
+		cli.SetOpt(msgpack.New(cli.Conn)).SetOpt(zio.NewSession(cli.Conn))
 		defer closeCli()
 		if err != nil {
 			log.Fatal(err)
@@ -63,7 +66,7 @@ func main() {
 	// 压测
 	startTime = GetCurrentTimeStampMS()
 	wg := new(sync.WaitGroup)
-	for i := 1; i <= 10000; i++ {
+	for i := 1; i <= 1000; i++ {
 		wg.Add(1)
 		go Client(wg)
 	}
