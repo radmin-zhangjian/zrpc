@@ -15,12 +15,10 @@ type handlerFunc func(*Context)
 type handlersChain []handlerFunc
 
 type Context struct {
-	Rcvr   reflect.Value
-	Ctx    context.Context
-	Args   any
-	Reply  *any
-	inArgs []reflect.Value
-
+	Ctx        context.Context
+	Args       any
+	Reply      *any
+	inArgs     []reflect.Value
 	StatusCode int
 	Keys       map[string]any
 	index      int8
@@ -48,7 +46,6 @@ func (c *Context) reset() {
 	c.index = -1
 	c.StatusCode = 0
 	c.Keys = nil
-	c.Rcvr = reflect.Value{}
 	c.Ctx = nil
 	c.Args = nil
 	c.Reply = nil

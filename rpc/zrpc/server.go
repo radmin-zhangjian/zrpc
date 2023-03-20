@@ -335,7 +335,6 @@ func (serve *Serve) call(response *zio.Response, svc *service, mtype *methodType
 		c := serve.pool.Get().(*Context)
 		c.reset()
 		c.Ctx = ctx
-		c.Rcvr = svc.rcvr
 		c.Args = response.Args
 		c.Reply = &response.Reply
 		c.inArgs = inArgs
