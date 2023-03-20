@@ -5,6 +5,7 @@ import (
 	"log"
 	"math"
 	"reflect"
+	"strings"
 	"sync"
 )
 
@@ -77,6 +78,17 @@ func assert1(guard bool, text string) {
 	}
 }
 
+func serverMothed(pattern string) (serviceName string, methodName string) {
+	dot := strings.LastIndex(pattern, ".")
+	if dot < 0 {
+		log.Fatalf("rpc: service/method request ill-formed: %s", pattern)
+		return
+	}
+	serviceName = pattern[:dot]
+	methodName = pattern[dot+1:]
+	return
+}
+
 func (group *RouterGroup) addRoute(pattern string, handlers handlersChain) {
 	//assert1(pattern[0] == '/', "path must begin with '/'")
 	assert1(len(handlers) > 0, "there must be at least one handler")
@@ -84,46 +96,25 @@ func (group *RouterGroup) addRoute(pattern string, handlers handlersChain) {
 	group.mu.Lock()
 	defer group.mu.Unlock()
 
-	log.Printf("Route %s", pattern)
-	//group.handlersMap[keys] = handlers
-	//keys := strings.Split(pattern, "/")
-	//keys = keys[1:]
-	//for k, v := range keys {
-	//	log.Printf("keys key %d, value %s", k, v)
-	//	if k == len(keys)-1 {
-	//		group.handlersMap[v] = handlers
-	//		//if _, dup := group.handlersMap.LoadOrStore(v, handlers); dup {
-	//		//	log.Fatalf("rpc: service already defined: %s", v)
-	//		//}
-	//	} else {
-	//		group.handlersMap[v] = make(map[string]any)
-	//		//if _, dup := group.handlersMap.LoadOrStore(v, make(map[string]any)); dup {
-	//		//	log.Fatalf("rpc: service already defined: %s", v)
-	//		//}
-	//	}
-	//}
-	//log.Printf("group.handlersMap %+v", group.handlersMap)
-	////val, ok := group.handlersMap.Load("")
-	//val, ok := group.handlersMap["v1"]
-	//if ok {
-	//	log.Printf("group.handlersMap %+v", val)
-	//}
+	log.Printf("full path: %s", pattern)
 
-	root := group.trees.get("post")
+	serviceName, path := serverMothed(pattern)
+	root := group.trees.get(serviceName)
 	if root == nil {
 		root = new(node)
 		root.fullPath = "/"
-		group.trees = append(group.trees, methodTree{method: "post", root: root})
+		group.trees = append(group.trees, methodTree{method: serviceName, root: root})
 	}
-	root.addRoute(pattern, handlers)
+	root.addRoute(pattern, path, handlers)
 }
 
 func (group *RouterGroup) GetRoute(pattern string) handlersChain {
-	root := group.trees.get("post")
+	serviceName, path := serverMothed(pattern)
+	root := group.trees.get(serviceName)
 	if root == nil {
-
+		log.Printf("rpc: service/method not find: %s", pattern)
 	}
-	return root.getRoute(pattern)
+	return root.getRoute(pattern, path)
 }
 
 func (group *RouterGroup) Use(middleware ...handlerFunc) {
