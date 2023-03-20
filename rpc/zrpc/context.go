@@ -18,6 +18,7 @@ type Context struct {
 	Ctx        context.Context
 	Args       any
 	Reply      *any
+	Error      *error
 	inArgs     []reflect.Value
 	StatusCode int
 	Keys       map[string]any

@@ -25,7 +25,7 @@ type User struct {
 }
 
 // QueryUser 用于测试用户查询的方法
-func (t *Test) QueryUser(ctx context.Context, arg Args, reply *any) error {
+func (t *Test) QueryUser(ctx context.Context, arg Args, reply *any, error *error) error {
 	user := make(map[int64]User)
 	// 假数据
 	user[0] = User{"zs", 20}
@@ -46,8 +46,8 @@ func (t *Test) QueryUser(ctx context.Context, arg Args, reply *any) error {
 }
 
 // QueryInt 用于测试用户查询的方法
-func (t *Test) QueryInt(ctx context.Context, arg map[string]any, reply *any) error {
-	log.Printf("v2.QueryInt ===================== v2.QueryInt ID：%v", arg["Id"])
+func (t *Test) QueryInt(ctx context.Context, arg map[string]any, reply *any, error *error) error {
+	log.Printf("v2.QueryInt ===================== v2.QueryInt ID：%v", arg["id"])
 	time.Sleep(1 * time.Second)
 	*reply = 111222333
 	return nil

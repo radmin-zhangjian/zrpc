@@ -31,6 +31,50 @@ func main() {
 	gob.Register(v1.User{})
 	gob.Register(v2.User{})
 
+	// 注册服务
+	sd, err := rpc.CreateServiceDiscovery(*basePath, *registry, "", 0, 100)
+	if err != nil {
+		log.Fatal(err)
+	}
+	// 创建服务端
+	srv := zrpc.NewServer(*addr, sd)
+	// 注册方法
+	register(srv)
+	// 启动服务
+	srv.Accept(srv.Server())
+}
+
+// 注册服务
+func register(srv *zrpc.Server) {
+	// 将服务端方法，注册一下
+	srv.RegisterName(new(service.Test), "service")
+	srv.RegisterName(new(v1.Test), "v1")
+	srv.RegisterName(new(v2.Test), "v2")
+	// 中间件 实例  Use放在最前面时，所有注册的服务端方法都会生效
+	srv.Use(func(c *zrpc.Context) {
+		log.Println("srv use ==========")
+		c.Next()
+		log.Println("srv use next ==========")
+	})
+	srv.UseHandle("v1.QueryInt", func(c *zrpc.Context) {
+		log.Println("v1.QueryInt ++++++++++")
+		log.Println("c.Args ++++++++++", c.Args)
+	}, func(c *zrpc.Context) {
+		log.Println("v1.QueryInt ----------")
+		c.Next()
+		log.Println("c.QueryInt next ----------")
+	})
+	srv.UseHandle("v1.QueryIntC", func(c *zrpc.Context) {
+		log.Println("v1.QueryIntC ++++++++++")
+		c.Next()
+		log.Println("v1.QueryIntC c.Args ++++++++++", c.Args)
+	})
+	srv.UseHandle("service.QueryUserC", func(c *zrpc.Context) {
+		log.Println("service.QueryUserC ++++++++++")
+		c.Next()
+		log.Println("service.QueryUserC c.Args ++++++++++", c.Args)
+	})
+
 	// 创建中间件
 	//r := rpc.NewRouterGroup()
 	//r.Use(func(c *rpc.Context) {
@@ -52,34 +96,4 @@ func main() {
 	//log.Printf("handles: %+v\n", h)
 	//context := rpc.NewContext()
 	//context.Test(h)
-
-	// 注册服务
-	sd, err := rpc.CreateServiceDiscovery(*basePath, *registry, "", 0, 100)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	// 创建服务端
-	srv := zrpc.NewServer(*addr, sd)
-	// 将服务端方法，注册一下
-	srv.RegisterName(new(service.Test), "service")
-	srv.RegisterName(new(v1.Test), "v1")
-	srv.RegisterName(new(v2.Test), "v2")
-	// 中间件 实例
-	srv.Use(func(c *zrpc.Context) {
-		log.Println("srv use ==========")
-		c.Next()
-		log.Println("srv use next ==========")
-	})
-	srv.UseHandle("v1.QueryInt",
-		func(c *zrpc.Context) {
-			log.Println("v1.QueryInt ++++++++++")
-			log.Println("c.Args ++++++++++", c.Args)
-		}, func(c *zrpc.Context) {
-			log.Println("v1.QueryInt ----------")
-			c.Next()
-			log.Println("c.QueryInt next ----------")
-		})
-	// 启动服务
-	srv.Accept(srv.Server())
 }

@@ -92,16 +92,17 @@ func main() {
 	}
 	if reply != nil {
 		reply1 := reply.(map[string]any)
-		fmt.Println("main.call.reply", reply1["Age"])
+		fmt.Println("main.call.reply111", reply1["Age"])
 	} else {
-		fmt.Printf("main.call.reply: %v \n", reply)
+		fmt.Printf("main.call.reply222: %v \n", reply)
 	}
 
 	fmt.Println("==========================================")
 
 	// 异步rpc
 	var reply2 any
-	call2 := cli.Go("v1.QueryInt", map[string]any{"Id": 10000, "msg": str}, &reply2, nil)
+	args2 := map[string]any{"id": 10000, "msg": str, "address": []string{"beijing", "nanjing"}}
+	call2 := cli.Go("v1.QueryIntC", args2, &reply2, nil)
 	<-call2.Done
 	if call2.Error != nil {
 		fmt.Printf("main.go.reply2.error: %v \n", call2.Error)

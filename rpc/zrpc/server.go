@@ -17,7 +17,15 @@ import (
 	"zrpc/rpc/zio"
 )
 
+var e = (*error)(nil)
+var typeOfInError = reflect.TypeOf(&e).Elem()
 var typeOfError = reflect.TypeOf((*error)(nil)).Elem()
+
+// Ctx & Args & Reply 模式下的参数个数
+var typeOfArgsNum = 5
+
+// *Context 模式下的参数个数
+var typeOfContextNum = 2
 
 type ServerCodec interface {
 	Encoder(zio.Response) ([]byte, error)
@@ -55,6 +63,7 @@ type methodType struct {
 	method    reflect.Method
 	ArgType   reflect.Type
 	ReplyType reflect.Type
+	argNum    int
 }
 
 type service struct {
@@ -134,24 +143,43 @@ func (server *Server) register(rcvr any, name string) error {
 		if !method.IsExported() {
 			continue
 		}
-		if mtype.NumIn() != 4 {
-			log.Printf("rpc.Register: method %q has %d input parameters; needs exactly four\n", mname, mtype.NumIn())
-			continue
+		var argType reflect.Type
+		var replyType reflect.Type
+		argNum := mtype.NumIn()
+		if argNum == typeOfArgsNum {
+			argType = mtype.In(2)
+			if !isExportedOrBuiltinType(argType) {
+				log.Printf("rpc.Register: argument type of method %q is not exported: %q\n", mname, argType)
+				continue
+			}
+			replyType = mtype.In(3)
+			if replyType.Kind() != reflect.Pointer {
+				log.Printf("rpc.Register: reply type of method %q is not a pointer: %q\n", mname, replyType)
+				continue
+			}
+			if !isExportedOrBuiltinType(replyType) {
+				log.Printf("rpc.Register: reply type of method %q is not exported: %q\n", mname, replyType)
+				continue
+			}
+			errorType := mtype.In(4)
+			if errorType.Kind() != reflect.Pointer {
+				log.Printf("rpc.Register: error type of method %q is not a pointer: %q\n", mname, errorType)
+				continue
+			}
+			if errorType != typeOfInError {
+				log.Printf("rpc.Register: error type of method %q is %q, must be error\n", mname, errorType)
+				continue
+			}
+		} else {
+			//log.Printf("rpc.Register: method %q has %d input parameters; needs exactly four\n", mname, mtype.NumIn())
+			//continue
+			replyType = mtype.In(1)
+			if replyType.Kind() != reflect.Pointer {
+				log.Printf("rpc.Register: reply type of method %q is not a pointer: %q\n", mname, replyType)
+				continue
+			}
 		}
-		argType := mtype.In(2)
-		if !isExportedOrBuiltinType(argType) {
-			log.Printf("rpc.Register: argument type of method %q is not exported: %q\n", mname, argType)
-			continue
-		}
-		replyType := mtype.In(3)
-		if replyType.Kind() != reflect.Pointer {
-			log.Printf("rpc.Register: reply type of method %q is not a pointer: %q\n", mname, replyType)
-			continue
-		}
-		if !isExportedOrBuiltinType(replyType) {
-			log.Printf("rpc.Register: reply type of method %q is not exported: %q\n", mname, replyType)
-			continue
-		}
+
 		if mtype.NumOut() != 1 {
 			log.Printf("rpc.Register: method %q has %d output parameters; needs exactly one\n", mname, mtype.NumOut())
 			continue
@@ -160,7 +188,7 @@ func (server *Server) register(rcvr any, name string) error {
 			log.Printf("rpc.Register: return type of method %q is %q, must be error\n", mname, returnType)
 			continue
 		}
-		methods[mname] = &methodType{method: method, ArgType: argType, ReplyType: replyType}
+		methods[mname] = &methodType{method: method, argNum: argNum, ArgType: argType, ReplyType: replyType}
 
 		// 注册方法集
 		server.UseHandle(name+"."+mname, func(c *Context) {
@@ -313,21 +341,22 @@ func (serve *Serve) call(response *zio.Response, svc *service, mtype *methodType
 		}
 	}()
 
-	// 包装参数
-	inArgs := make([]reflect.Value, 0, 4)
-	// 对象参数
-	inArgs = append(inArgs, svc.rcvr)
-	// ctx 参数
 	ctx := context.Background()
-	inArgs = append(inArgs, reflect.ValueOf(ctx))
-	// 获取Args对应的struct参数
-	mapArgs := getArgsRValue(mtype, response.Args)
-	inArgs = append(inArgs, mapArgs)
-	// 返回值参数
-	inArgs = append(inArgs, reflect.ValueOf(reflect.ValueOf(&response.Reply).Interface()))
-
-	var returnValues []reflect.Value
-	method := mtype.method
+	// 包装参数
+	inArgs := make([]reflect.Value, 0, typeOfArgsNum)
+	if mtype.argNum == typeOfArgsNum {
+		// 对象参数
+		inArgs = append(inArgs, svc.rcvr)
+		// ctx 参数
+		inArgs = append(inArgs, reflect.ValueOf(ctx))
+		// 获取Args对应的struct参数
+		mapArgs := getArgsRValue(mtype, response.Args)
+		inArgs = append(inArgs, mapArgs)
+		// 返回值参数
+		inArgs = append(inArgs, reflect.ValueOf(reflect.ValueOf(&response.Reply).Interface()))
+		// 返回 error 参数
+		inArgs = append(inArgs, reflect.ValueOf(&response.Error))
+	}
 
 	// 执行中间件
 	h := serve.GetRoute(serve.ServiceMethod)
@@ -337,37 +366,31 @@ func (serve *Serve) call(response *zio.Response, svc *service, mtype *methodType
 		c.Ctx = ctx
 		c.Args = response.Args
 		c.Reply = &response.Reply
+		c.Error = &response.Error
 		c.inArgs = inArgs
-		//inArgsC := make([]reflect.Value, 0, 2)
-		//inArgsC = append(inArgsC, svc.rcvr)
-		//inArgsC = append(inArgsC, reflect.ValueOf(&c))
-		//c.inArgs = inArgsC
-		//h = append(h, func(c *Context) {
-		//	returnValues = method.Func.Call(c.inArgs)
-		//})
+		if mtype.argNum == typeOfContextNum {
+			inContext := make([]reflect.Value, 0, typeOfContextNum)
+			inContext = append(inContext, svc.rcvr)
+			inContext = append(inContext, reflect.ValueOf(c))
+			c.inArgs = inContext
+		}
 		c.handlers = h
 		c.Next()
 		serve.pool.Put(c)
 	} else {
-		// 获取方法
-		method = mtype.method
-		// 反射调用方法
-		returnValues = method.Func.Call(inArgs)
+		serve.sendResponse(response, sending, errors.New("not find service"))
+		return
 	}
-	// 获取方法
-	//method := mtype.method
-	//// 反射调用方法
-	//returnValues := method.Func.Call(inArgs)
+
 	// 返回Error类型
-	//errInter := returnValues[0].Interface()
-	//var errReturn error
-	//if errInter != nil {
-	//	errReturn = errInter.(error)
-	//} else {
-	//	errReturn = nil
-	//}
-	_ = returnValues
-	errReturn := (error)(nil)
+	errInter := response.Error
+	var errReturn error
+	if errInter != nil {
+		errReturn = errInter.(error)
+	} else {
+		errReturn = (error)(nil)
+	}
+
 	// 发送客户端
 	serve.sendResponse(response, sending, errReturn)
 }
