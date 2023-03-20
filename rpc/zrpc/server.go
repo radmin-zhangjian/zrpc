@@ -191,7 +191,7 @@ func (server *Server) register(rcvr any, name string) error {
 		methods[mname] = &methodType{method: method, argNum: argNum, ArgType: argType, ReplyType: replyType}
 
 		// 注册方法集
-		server.UseHandle(name+"."+mname, func(c *Context) {
+		server.useHandle(name+"."+mname, func(c *Context) {
 			method.Func.Call(c.inArgs)
 		})
 	}

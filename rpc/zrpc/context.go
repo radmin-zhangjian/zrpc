@@ -87,7 +87,8 @@ func serverMothed(pattern string) (serviceName string, methodName string) {
 	return
 }
 
-func (group *RouterGroup) addRoute(pattern string, handlers handlersChain) {
+// source: true方法集 false中间件
+func (group *RouterGroup) addRoute(pattern string, source bool, handlers handlersChain) {
 	//assert1(pattern[0] == '/', "path must begin with '/'")
 	assert1(len(handlers) > 0, "there must be at least one handler")
 
@@ -103,7 +104,7 @@ func (group *RouterGroup) addRoute(pattern string, handlers handlersChain) {
 		root.fullPath = "/"
 		group.trees = append(group.trees, methodTree{method: serviceName, root: root})
 	}
-	root.addRoute(pattern, path, handlers)
+	root.addRoute(pattern, path, source, handlers)
 }
 
 func (group *RouterGroup) GetRoute(pattern string) handlersChain {
@@ -120,10 +121,18 @@ func (group *RouterGroup) Use(middleware ...handlerFunc) {
 }
 
 func (group *RouterGroup) UseHandle(pattern string, handler ...handlerFunc) {
+	group.handle(pattern, false, handler...)
+}
+
+func (group *RouterGroup) useHandle(pattern string, handler ...handlerFunc) {
+	group.handle(pattern, true, handler...)
+}
+
+func (group *RouterGroup) handle(pattern string, source bool, handler ...handlerFunc) {
 	finalSize := len(group.handlers) + len(handler)
 	mergedHandlers := make(handlersChain, finalSize)
 	copy(mergedHandlers, group.handlers)
 	copy(mergedHandlers[len(group.handlers):], handler)
 	//mergedHandlers = append(mergedHandlers, handler...)
-	group.addRoute(pattern, mergedHandlers)
+	group.addRoute(pattern, source, mergedHandlers)
 }

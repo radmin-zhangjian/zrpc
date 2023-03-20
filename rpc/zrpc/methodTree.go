@@ -25,7 +25,7 @@ func (trees methodTrees) get(method string) *node {
 	return nil
 }
 
-func (n *node) addRoute(pattern string, path string, handlers handlersChain) {
+func (n *node) addRoute(pattern string, path string, source bool, handlers handlersChain) {
 	if pattern == "/" {
 		n.path = "/"
 		n.handlers = handlers
@@ -34,8 +34,13 @@ func (n *node) addRoute(pattern string, path string, handlers handlersChain) {
 
 	for k, v := range n.children {
 		if v.path == path {
-			h := v.handlers
-			n.children[k].handlers = append(handlers, h[len(h)-1:]...)
+			if source {
+				h := handlers
+				n.children[k].handlers = append(v.handlers, h[len(h)-1:]...)
+			} else {
+				h := v.handlers
+				n.children[k].handlers = append(handlers, h[len(h)-1:]...)
+			}
 			log.Println("route repeat value")
 			return
 		}
