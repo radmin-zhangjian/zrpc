@@ -45,7 +45,8 @@ type Server struct {
 	serviceMap sync.Map
 
 	*RouterGroup
-	pool sync.Pool
+	pool      sync.Pool
+	servePool sync.Pool
 }
 
 // Serve 服务
@@ -83,6 +84,9 @@ func NewServer(addr string, sd center.ServeDiscovery) *Server {
 		},
 	}
 	engine.pool.New = func() any {
+		return &Serve{}
+	}
+	engine.servePool.New = func() any {
 		return &Context{}
 	}
 	return engine
@@ -243,12 +247,20 @@ func (server *Server) Accept(lis net.Listener) {
 	}
 }
 
+func (serve *Serve) reset() {
+	serve.ServiceMethod = ""
+}
+
 // Serve 建立服务
 func (server *Server) Serve(codec ServerCodec, zio ServerIo) {
-	serve := &Serve{codec: codec, io: zio}
-	serve.serviceMap = server.serviceMap
+	serve := server.pool.Get().(*Serve)
+	serve.reset()
+	serve.codec = codec
+	serve.io = zio
 	serve.RouterGroup = server.RouterGroup
-	serve.pool = server.pool
+	serve.serviceMap = server.serviceMap
+	serve.pool = server.servePool
+	serve.pool.Put(serve)
 	go serve.ServeCodec()
 }
 
