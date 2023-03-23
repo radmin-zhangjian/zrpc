@@ -14,7 +14,6 @@ import (
 	"sync"
 	"zrpc/rpc/center"
 	pcd "zrpc/rpc/codec/protobuf"
-	pd "zrpc/rpc/proto"
 	"zrpc/rpc/zio"
 )
 
@@ -22,8 +21,8 @@ var typeOfError = reflect.TypeOf((*error)(nil)).Elem()
 var typeOfAnypd = reflect.TypeOf((*anypb.Any)(nil)).Elem()
 
 type ServerCodec interface {
-	Encoder(pd.Response) ([]byte, error)
-	Decoder(b []byte) (pd.Response, error)
+	Encoder(pcd.Response) ([]byte, error)
+	Decoder(b []byte) (pcd.Response, error)
 }
 
 type ServerIo interface {
@@ -226,7 +225,7 @@ func (serve *Serve) ServeCodec() {
 }
 
 // 读取并解析参数
-func (serve *Serve) readRequest() (response *pd.Response, svc *service, mtype *methodType, keepReading bool, req bool, err string) {
+func (serve *Serve) readRequest() (response *pcd.Response, svc *service, mtype *methodType, keepReading bool, req bool, err string) {
 	// 使用RPC方式读取数据
 	b, errR := serve.io.Read()
 	if errR != nil {
@@ -282,7 +281,7 @@ func (serve *Serve) readRequest() (response *pd.Response, svc *service, mtype *m
 }
 
 // 结果返回客户端
-func (serve *Serve) call(response *pd.Response, svc *service, mtype *methodType, sending *sync.Mutex, wg *sync.WaitGroup) {
+func (serve *Serve) call(response *pcd.Response, svc *service, mtype *methodType, sending *sync.Mutex, wg *sync.WaitGroup) {
 	defer wg.Done()
 
 	// 捕获业务程序异常 防止崩溃
@@ -324,10 +323,10 @@ func (serve *Serve) call(response *pd.Response, svc *service, mtype *methodType,
 	serve.sendResponse(response, sending, errReturn)
 }
 
-func (serve *Serve) sendResponse(response *pd.Response, sending *sync.Mutex, errReturn string) {
+func (serve *Serve) sendResponse(response *pcd.Response, sending *sync.Mutex, errReturn string) {
 	sending.Lock()
 	// 数据编码，返回给客户端
-	respRPCData := pd.Response{ServiceMethod: response.ServiceMethod, Reply: response.Reply, Seq: response.Seq, Error: errReturn}
+	respRPCData := pcd.Response{ServiceMethod: response.ServiceMethod, Reply: response.Reply, Seq: response.Seq, Error: errReturn}
 	bytes, errE := serve.codec.Encoder(respRPCData)
 	if errE != nil {
 		//return

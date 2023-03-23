@@ -10,7 +10,6 @@ import (
 	"sync"
 	"zrpc/rpc/center"
 	pcd "zrpc/rpc/codec/protobuf"
-	pd "zrpc/rpc/proto"
 	"zrpc/rpc/zio"
 )
 
@@ -19,8 +18,8 @@ var ErrShutdown = errors.New("connection is shut down")
 var ErrDiscovery = errors.New("service not found")
 
 type ClientCodec interface {
-	Encoder(pd.Response) ([]byte, error)
-	Decoder(b []byte) (pd.Response, error)
+	Encoder(pcd.Response) ([]byte, error)
+	Decoder(b []byte) (pcd.Response, error)
 }
 
 type ClientIo interface {
@@ -153,7 +152,7 @@ func (c *Client) send(call *Call) {
 	// 处理参数
 	inArgs := call.Args.(*anypb.Any)
 	// 编码数据
-	reqData := pd.Response{ServiceMethod: call.ServiceMethod, Args: inArgs, Seq: seq}
+	reqData := pcd.Response{ServiceMethod: call.ServiceMethod, Args: inArgs, Seq: seq}
 	b, err := c.codec.Encoder(reqData)
 	if err != nil {
 		log.Printf("rpc encode: %v", err)

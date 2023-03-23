@@ -10,7 +10,7 @@ import (
 	"time"
 	"zrpc/rpc"
 	"zrpc/rpc/center"
-	pd "zrpc/rpc/proto"
+	test "zrpc/rpc/proto/proto/test"
 	"zrpc/rpc/proto/rpcp"
 )
 
@@ -60,7 +60,7 @@ func main() {
 	var reply any
 	// 参数 struct 格式
 	str := "我是rpc测试参数！！！"
-	args := &pd.Args{
+	args := &test.Args{
 		Id:    2,
 		Param: str,
 	}
@@ -71,7 +71,7 @@ func main() {
 		fmt.Println("main.call.errC", errC)
 	} else {
 		reply1 := reply.(*anypb.Any)
-		unmarshal := &pd.Reply{}
+		unmarshal := &test.Reply{}
 		//ptypes.UnmarshalAny(reply1, unmarshal)
 		anypb.UnmarshalTo(reply1, unmarshal, proto.UnmarshalOptions{})
 		fmt.Println("main.call.reply", unmarshal)
@@ -82,7 +82,7 @@ func main() {
 	// 异步rpc
 	var reply2 any
 	str = "我是rpc测试参数222！！！"
-	args2 := &pd.Args2{
+	args2 := &test.Args2{
 		Id:    1,
 		Param: str,
 	}
@@ -93,9 +93,10 @@ func main() {
 		fmt.Printf("main.go.reply2.error: %v \n", call2.Error)
 	} else {
 		result := reply2.(*anypb.Any)
-		unmarshal := &pd.Reply{}
+		unmarshal := &test.Reply{}
 		anypb.UnmarshalTo(result, unmarshal, proto.UnmarshalOptions{})
 		fmt.Printf("main.go.reply2: %v \n", unmarshal)
+		fmt.Println("main.call.reply2", unmarshal.Data["a"])
 	}
 
 	time.Sleep(2 * time.Second)
@@ -114,7 +115,7 @@ func Client(wg *sync.WaitGroup) {
 	defer wg.Done()
 	var reply any
 	// 参数 struct 格式
-	args := &pd.Args{
+	args := &test.Args{
 		Id:    2,
 		Param: "msg",
 	}
