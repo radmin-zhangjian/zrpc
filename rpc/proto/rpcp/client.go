@@ -17,10 +17,6 @@ var debugLog = false
 var ErrShutdown = errors.New("connection is shut down")
 var ErrDiscovery = errors.New("service not found")
 
-//type ClientCodec interface {
-//	Encoder(pcd.Response) ([]byte, error)
-//	Decoder(b []byte) (pcd.Response, error)
-//}
 type ClientCodec interface {
 	Encoder(any) ([]byte, error)
 	Decoder(b []byte) (any, error)

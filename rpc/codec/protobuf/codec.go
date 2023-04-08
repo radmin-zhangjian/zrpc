@@ -15,7 +15,6 @@ func New(conn net.Conn) *codec {
 }
 
 // Encoder 编码
-//func (c *codec) Encoder(data Response) ([]byte, error) {
 func (c *codec) Encoder(data any) ([]byte, error) {
 	// 序列化结构体数据
 	pdata := data.(*Response)
@@ -28,7 +27,6 @@ func (c *codec) Encoder(data any) ([]byte, error) {
 }
 
 // Decoder 解码
-//func (c *codec) Decoder(b []byte) (Response, error) {
 func (c *codec) Decoder(b []byte) (any, error) {
 	//反序列化结构体
 	data := &Response{}

@@ -20,10 +20,6 @@ import (
 var typeOfError = reflect.TypeOf((*error)(nil)).Elem()
 var typeOfAnypd = reflect.TypeOf((*anypb.Any)(nil)).Elem()
 
-//type ServerCodec interface {
-//	Encoder(pcd.Response) ([]byte, error)
-//	Decoder(b []byte) (pcd.Response, error)
-//}
 type ServerCodec interface {
 	Encoder(any) ([]byte, error)
 	Decoder(b []byte) (any, error)
