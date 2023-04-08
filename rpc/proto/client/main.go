@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
 	"google.golang.org/protobuf/proto"
@@ -11,6 +12,7 @@ import (
 	"zrpc/rpc"
 	"zrpc/rpc/center"
 	test "zrpc/rpc/proto/proto/test"
+	user "zrpc/rpc/proto/proto/user"
 	"zrpc/rpc/proto/rpcp"
 )
 
@@ -96,7 +98,36 @@ func main() {
 		unmarshal := &test.Reply{}
 		anypb.UnmarshalTo(result, unmarshal, proto.UnmarshalOptions{})
 		fmt.Printf("main.go.reply2: %v \n", unmarshal)
-		fmt.Println("main.call.reply2", unmarshal.Data["a"])
+		fmt.Println("main.go.reply2.a", string(unmarshal.Data["a"].Value))
+		fmt.Println("main.go.reply2.b", string(unmarshal.Data["b"].Value))
+		data := make([]map[string]interface{}, 0)
+		json.Unmarshal(unmarshal.List.Value, &data)
+		fmt.Println("main.go.reply2.a", data[0]["a"])
+		fmt.Println("main.go.reply2.b", data[1]["b"])
+	}
+
+	// 异步rpc
+	var reply3 any
+	str = "我是rpc测试参数222！！！"
+	args2 = &test.Args2{
+		Id:    1,
+		Param: str,
+	}
+	inArgsAny, err = anypb.New(args2)
+	call2 = cli.Go("service.GetUserList", inArgsAny, &reply3, nil)
+	<-call2.Done
+	if call2.Error != nil {
+		fmt.Printf("main.go.reply3.error: %v \n", call2.Error)
+	} else {
+		result := reply3.(*anypb.Any)
+		unmarshal := &user.Reply{}
+		anypb.UnmarshalTo(result, unmarshal, proto.UnmarshalOptions{})
+		fmt.Printf("main.go.reply3: %v \n", unmarshal)
+		fmt.Println("main.go.reply3.Detail", unmarshal.Detail)
+		fmt.Println("main.go.reply3.Detail---", unmarshal.Detail["身高"])
+		fmt.Println("main.go.reply3.Gender", unmarshal.Gender)
+		fmt.Println("main.go.reply3.List", unmarshal.List)
+		fmt.Println("main.go.reply3.List---", unmarshal.List[0].Model)
 	}
 
 	time.Sleep(2 * time.Second)

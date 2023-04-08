@@ -2,6 +2,7 @@ package example
 
 import (
 	"context"
+	"encoding/json"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
 	test "zrpc/rpc/proto/proto/test"
@@ -29,7 +30,21 @@ func (t *Test) QueryProto2(ctx context.Context, arg *anypb.Any) (reply *anypb.An
 	//log.Printf("service.QueryProto ===================== service.QueryProto：%v", unmarshal)
 	//time.Sleep(1 * time.Second)
 
+	res := map[string]interface{}{
+		"a": "a111",
+		"b": 2,
+		"c": 3,
+	}
+	res2 := map[string]interface{}{
+		"a": "a222",
+		"b": 22,
+		"c": 33,
+	}
+	resArr := make([]map[string]interface{}, 0)
+	resArr = append(resArr, res, res2)
+	strbyte, _ := json.Marshal(resArr)
+	list := anypb.Any{Value: strbyte}
 	data := map[string]*anypb.Any{"a": {TypeUrl: "a", Value: []byte("1")}, "b": {Value: []byte("app")}}
-	reply, err = anypb.New(&test.Reply{Code: 200, Message: unmarshal.Param, Data: data})
+	reply, err = anypb.New(&test.Reply{Code: 200, Message: unmarshal.Param, Data: data, List: &list})
 	return
 }

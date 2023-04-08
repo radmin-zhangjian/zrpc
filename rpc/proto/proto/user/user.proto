@@ -1,0 +1,38 @@
+syntax = "proto3";
+
+package model;
+
+option go_package ="./;model";
+
+// 参数1
+message Args {
+  int64 Id = 1;
+  string Param = 2;
+}
+
+// 参数2
+message Args2 {
+  int64 Id = 1;
+  string Param = 2;
+}
+
+// 返回值
+message Reply {
+  int64 Code = 1;
+  string Message = 2;
+  enum Gender {
+    option allow_alias = true;
+    MALE = 0;
+    BOY = 0;
+    FEMALE = 1;
+    GIRL = 1;
+    OTHER = 2;
+  }
+  Gender gender = 3;
+  message Data {
+    string model = 1;
+    string brand = 2;
+  }
+  repeated Data list = 4;
+  map<string,string> detail = 5;
+}
