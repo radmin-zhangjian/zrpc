@@ -20,9 +20,13 @@ import (
 var typeOfError = reflect.TypeOf((*error)(nil)).Elem()
 var typeOfAnypd = reflect.TypeOf((*anypb.Any)(nil)).Elem()
 
+//type ServerCodec interface {
+//	Encoder(pcd.Response) ([]byte, error)
+//	Decoder(b []byte) (pcd.Response, error)
+//}
 type ServerCodec interface {
-	Encoder(pcd.Response) ([]byte, error)
-	Decoder(b []byte) (pcd.Response, error)
+	Encoder(any) ([]byte, error)
+	Decoder(b []byte) (any, error)
 }
 
 type ServerIo interface {
@@ -239,7 +243,7 @@ func (serve *Serve) readRequest() (response *pcd.Response, svc *service, mtype *
 
 	// 数据解码
 	res, errC := serve.codec.Decoder(b)
-	response = &res
+	response = res.(*pcd.Response)
 	if errC != nil {
 		err = errR.Error()
 		req = true
@@ -327,7 +331,7 @@ func (serve *Serve) sendResponse(response *pcd.Response, sending *sync.Mutex, er
 	sending.Lock()
 	// 数据编码，返回给客户端
 	respRPCData := pcd.Response{ServiceMethod: response.ServiceMethod, Reply: response.Reply, Seq: response.Seq, Error: errReturn}
-	bytes, errE := serve.codec.Encoder(respRPCData)
+	bytes, errE := serve.codec.Encoder(&respRPCData)
 	if errE != nil {
 		//return
 	}
