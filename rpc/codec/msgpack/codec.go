@@ -4,7 +4,7 @@ import (
 	"github.com/vmihailenco/msgpack/v5"
 	"log"
 	"net"
-	"zrpc/rpc/zio"
+	cdc "zrpc/rpc/codec"
 )
 
 type codec struct {
@@ -16,7 +16,7 @@ func New(conn net.Conn) *codec {
 }
 
 // Encoder 编码
-func (c *codec) Encoder(data zio.Response) ([]byte, error) {
+func (c *codec) Encoder(data any) ([]byte, error) {
 	// msgpack 编码
 	buf, err := msgpack.Marshal(data)
 	if err != nil {
@@ -27,13 +27,13 @@ func (c *codec) Encoder(data zio.Response) ([]byte, error) {
 }
 
 // Decoder 解码
-func (c *codec) Decoder(b []byte) (zio.Response, error) {
+func (c *codec) Decoder(b []byte) (any, error) {
 	// msgpack 解码
-	var data zio.Response
+	var data cdc.Response
 	err := msgpack.Unmarshal(b, &data)
 	if err != nil {
 		log.Println("Failed to decode:", err)
-		return data, err
+		return &data, err
 	}
-	return data, nil
+	return &data, nil
 }

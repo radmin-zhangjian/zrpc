@@ -13,6 +13,7 @@ import (
 	"strings"
 	"sync"
 	"zrpc/rpc/center"
+	"zrpc/rpc/codec"
 	"zrpc/rpc/codec/msgpack"
 	"zrpc/rpc/zio"
 )
@@ -20,8 +21,8 @@ import (
 var typeOfError = reflect.TypeOf((*error)(nil)).Elem()
 
 type ServerCodec interface {
-	Encoder(zio.Response) ([]byte, error)
-	Decoder(b []byte) (zio.Response, error)
+	Encoder(any) ([]byte, error)
+	Decoder(b []byte) (any, error)
 }
 
 type ServerIo interface {
@@ -231,7 +232,7 @@ func (serve *Serve) ServeCodec() {
 }
 
 // 读取并解析参数
-func (serve *Serve) readRequest() (response *zio.Response, svc *service, mtype *methodType, keepReading bool, req bool, err error) {
+func (serve *Serve) readRequest() (response *codec.Response, svc *service, mtype *methodType, keepReading bool, req bool, err error) {
 	// 使用RPC方式读取数据
 	b, err := serve.io.Read()
 	if err != nil {
@@ -244,7 +245,7 @@ func (serve *Serve) readRequest() (response *zio.Response, svc *service, mtype *
 
 	// 数据解码
 	res, err := serve.codec.Decoder(b)
-	response = &res
+	response = res.(*codec.Response)
 	if err != nil {
 		req = true
 		if err == io.EOF || err == io.ErrUnexpectedEOF {
@@ -285,7 +286,7 @@ func (serve *Serve) readRequest() (response *zio.Response, svc *service, mtype *
 }
 
 // 结果返回客户端
-func (serve *Serve) call(response *zio.Response, svc *service, mtype *methodType, sending *sync.Mutex, wg *sync.WaitGroup) {
+func (serve *Serve) call(response *codec.Response, svc *service, mtype *methodType, sending *sync.Mutex, wg *sync.WaitGroup) {
 	defer wg.Done()
 
 	// 捕获业务程序异常 防止崩溃
@@ -325,10 +326,10 @@ func (serve *Serve) call(response *zio.Response, svc *service, mtype *methodType
 	serve.sendResponse(response, sending, errReturn)
 }
 
-func (serve *Serve) sendResponse(response *zio.Response, sending *sync.Mutex, errReturn error) {
+func (serve *Serve) sendResponse(response *codec.Response, sending *sync.Mutex, errReturn error) {
 	sending.Lock()
 	// 数据编码，返回给客户端
-	respRPCData := zio.Response{ServiceMethod: response.ServiceMethod, Reply: response.Reply, Seq: response.Seq, Error: errReturn}
+	respRPCData := codec.Response{ServiceMethod: response.ServiceMethod, Reply: response.Reply, Seq: response.Seq, Error: errReturn}
 	bytes, errE := serve.codec.Encoder(respRPCData)
 	if errE != nil {
 		//return

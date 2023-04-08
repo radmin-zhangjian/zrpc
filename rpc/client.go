@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"sync"
 	"zrpc/rpc/center"
+	"zrpc/rpc/codec"
 	"zrpc/rpc/codec/msgpack"
 	"zrpc/rpc/zio"
 )
@@ -17,8 +18,8 @@ var ErrShutdown = errors.New("connection is shut down")
 var ErrDiscovery = errors.New("service not found")
 
 type ClientCodec interface {
-	Encoder(zio.Response) ([]byte, error)
-	Decoder(b []byte) (zio.Response, error)
+	Encoder(any) ([]byte, error)
+	Decoder(b []byte) (any, error)
 }
 
 type ClientIo interface {
@@ -186,8 +187,19 @@ func (c *Client) send(call *Call) {
 		inArgs = call.Args
 	}
 
+	//inArgs = call.Args
+	//var reqData any
+	//switch call.Args.(type) {
+	//case *anypb.Any:
+	//	inArgs = call.Args.(*anypb.Any)
+	//	reqData = pcd.Response{ServiceMethod: call.ServiceMethod, Args: inArgs, Seq: seq}
+	//case interface{}:
+	//	inArgs = call.Args
+	//	reqData = codec.Response{ServiceMethod: call.ServiceMethod, Args: inArgs, Seq: seq}
+	//}
+
 	// 编码数据
-	reqData := zio.Response{ServiceMethod: call.ServiceMethod, Args: inArgs, Seq: seq}
+	reqData := codec.Response{ServiceMethod: call.ServiceMethod, Args: inArgs, Seq: seq}
 	b, err := c.codec.Encoder(reqData)
 	if err != nil {
 		log.Printf("rpc encode: %v", err)
@@ -209,7 +221,8 @@ func (c *Client) input() {
 			err = errors.New("reading error body: " + errR.Error())
 		}
 		// 解码
-		response, errD := c.codec.Decoder(respBytes)
+		res, errD := c.codec.Decoder(respBytes)
+		response := res.(*codec.Response)
 		if errD != nil {
 			err = errors.New("reading error body: " + errD.Error())
 			break
@@ -269,7 +282,8 @@ func (c *Client) inputNoCycle() {
 		err = errors.New("reading error body: " + errR.Error())
 	}
 	// 解码
-	response, errD := c.codec.Decoder(respBytes)
+	res, errD := c.codec.Decoder(respBytes)
+	response := res.(*codec.Response)
 	if errD != nil {
 		err = errors.New("reading error body: " + errD.Error())
 	}

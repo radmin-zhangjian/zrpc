@@ -11,20 +11,6 @@ import (
 
 var MSG_HEAD = []byte("@**@")
 
-// Response 定义RPC交互的数据结构
-type Response struct {
-	// 访问的函数
-	ServiceMethod string
-	// 访问时的参数
-	Args any
-	// 返回数据
-	Reply any
-	// 错误
-	Error error
-	// Id
-	Seq uint64
-}
-
 // Session 会话链接的结构体
 type Session struct {
 	conn net.Conn
