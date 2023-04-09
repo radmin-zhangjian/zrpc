@@ -1,5 +1,7 @@
 ### protobuf 创建
 protoc -I . --go_out=. --go-grpc_out=. ./response.proto
+protoc -I . --go_out=./test --go-grpc_out=. ./test/test.proto
+protoc -I . --go_out=./test --go-grpc_out=. ./test/test.proto
 
 ### server 服务端
 ````
