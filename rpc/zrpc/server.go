@@ -368,7 +368,12 @@ func (serve *Serve) call(response *codec.Response, svc *service, mtype *methodTy
 	defer func() {
 		if err := recover(); err != nil {
 			log.Printf("err.(error): %+v\n", err.(error))
-			serve.sendResponse(response, sending, err.(error))
+			switch err.(type) {
+			case string:
+				serve.sendResponse(response, sending, errors.New(err.(string)))
+			default:
+				serve.sendResponse(response, sending, err.(error))
+			}
 			return
 		}
 	}()
