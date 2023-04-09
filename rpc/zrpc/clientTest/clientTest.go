@@ -101,7 +101,8 @@ func main() {
 
 	// 异步rpc
 	var reply2 any
-	args2 := map[string]any{"id": 10000, "msg": str, "address": []string{"beijing", "nanjing"}}
+	str2 := "我是rpcServer测试参数222！！！"
+	args2 := map[string]any{"id": 10000, "msg": str2, "address": []string{"beijing", "nanjing"}}
 	call2 := cli.Go("v1.QueryIntC", args2, &reply2, nil)
 	<-call2.Done
 	if call2.Error != nil {

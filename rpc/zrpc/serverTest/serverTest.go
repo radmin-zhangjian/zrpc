@@ -5,6 +5,7 @@ import (
 	"flag"
 	"log"
 	"zrpc/rpc"
+	"zrpc/rpc/codec/msgpack"
 	"zrpc/rpc/zrpc"
 	"zrpc/rpc/zrpc/example/service"
 	v1 "zrpc/rpc/zrpc/example/v1"
@@ -38,6 +39,7 @@ func main() {
 	}
 	// 创建服务端
 	srv := zrpc.NewServer(*addr, sd)
+	srv.SetOpt(msgpack.FuncNew())
 	// 注册方法
 	register(srv)
 	// 启动服务

@@ -13,6 +13,7 @@ import (
 	"strings"
 	"sync"
 	"zrpc/rpc/center"
+	"zrpc/rpc/codec"
 	"zrpc/rpc/codec/msgpack"
 	"zrpc/rpc/zio"
 )
@@ -27,22 +28,14 @@ var typeOfArgsNum = 5
 // *Context 模式下的参数个数
 var typeOfContextNum = 2
 
-type ServerCodec interface {
-	Encoder(zio.Response) ([]byte, error)
-	Decoder(b []byte) (zio.Response, error)
-}
-
-type ServerIo interface {
-	Read() ([]byte, error)
-	Write([]byte) error
-	Close() error
-}
-
 // Server 声明服务端
 type Server struct {
 	sd         center.ServeDiscovery
 	addr       string
 	serviceMap sync.Map
+
+	codec func(conn net.Conn) codec.Codec
+	io    func(conn net.Conn) zio.RWIo
 
 	*RouterGroup
 	pool      sync.Pool
@@ -51,8 +44,8 @@ type Server struct {
 
 // Serve 服务
 type Serve struct {
-	codec      ServerCodec
-	io         ServerIo
+	codec      codec.Codec
+	io         zio.RWIo
 	serviceMap sync.Map
 
 	ServiceMethod string
@@ -90,6 +83,17 @@ func NewServer(addr string, sd center.ServeDiscovery) *Server {
 		return &Context{}
 	}
 	return engine
+}
+
+// SetOpt 自定义设置opt
+func (server *Server) SetOpt(opt any) *Server {
+	switch opt.(type) {
+	case func(conn net.Conn) codec.Codec:
+		server.codec = opt.(func(conn net.Conn) codec.Codec)
+	case func(conn net.Conn) zio.RWIo:
+		server.io = opt.(func(conn net.Conn) zio.RWIo)
+	}
+	return server
 }
 
 // Register 服务端注册服务
@@ -243,7 +247,23 @@ func (server *Server) Accept(lis net.Listener) {
 			continue
 		}
 
-		server.Serve(msgpack.New(conn), zio.NewSession(conn))
+		var cc codec.Codec
+		if server.codec == nil {
+			cc = msgpack.New(conn)
+		} else {
+			cc = server.codec(conn)
+		}
+
+		var rwio zio.RWIo
+		if server.io == nil {
+			rwio = zio.NewSession(conn)
+		} else {
+			rwio = server.io(conn)
+		}
+
+		server.Serve(cc, rwio)
+
+		//server.Serve(msgpack.New(conn), zio.NewSession(conn))
 	}
 }
 
@@ -252,7 +272,7 @@ func (serve *Serve) reset() {
 }
 
 // Serve 建立服务
-func (server *Server) Serve(codec ServerCodec, zio ServerIo) {
+func (server *Server) Serve(codec codec.Codec, zio zio.RWIo) {
 	serve := server.pool.Get().(*Serve)
 	serve.reset()
 	serve.codec = codec
@@ -260,7 +280,7 @@ func (server *Server) Serve(codec ServerCodec, zio ServerIo) {
 	serve.RouterGroup = server.RouterGroup
 	serve.serviceMap = server.serviceMap
 	serve.pool = server.servePool
-	serve.pool.Put(serve)
+	server.pool.Put(serve)
 	go serve.ServeCodec()
 }
 
@@ -290,7 +310,7 @@ func (serve *Serve) ServeCodec() {
 }
 
 // 读取并解析参数
-func (serve *Serve) readRequest() (response *zio.Response, svc *service, mtype *methodType, keepReading bool, req bool, err error) {
+func (serve *Serve) readRequest() (response *codec.Response, svc *service, mtype *methodType, keepReading bool, req bool, err error) {
 	// 使用RPC方式读取数据
 	b, err := serve.io.Read()
 	if err != nil {
@@ -303,7 +323,7 @@ func (serve *Serve) readRequest() (response *zio.Response, svc *service, mtype *
 
 	// 数据解码
 	res, err := serve.codec.Decoder(b)
-	response = &res
+	response = res.(*codec.Response)
 	if err != nil {
 		req = true
 		if err == io.EOF || err == io.ErrUnexpectedEOF {
@@ -341,7 +361,7 @@ func (serve *Serve) readRequest() (response *zio.Response, svc *service, mtype *
 }
 
 // 结果返回客户端
-func (serve *Serve) call(response *zio.Response, svc *service, mtype *methodType, sending *sync.Mutex, wg *sync.WaitGroup) {
+func (serve *Serve) call(response *codec.Response, svc *service, mtype *methodType, sending *sync.Mutex, wg *sync.WaitGroup) {
 	defer wg.Done()
 
 	// 捕获业务程序异常 防止崩溃
@@ -407,10 +427,10 @@ func (serve *Serve) call(response *zio.Response, svc *service, mtype *methodType
 	serve.sendResponse(response, sending, errReturn)
 }
 
-func (serve *Serve) sendResponse(response *zio.Response, sending *sync.Mutex, errReturn error) {
+func (serve *Serve) sendResponse(response *codec.Response, sending *sync.Mutex, errReturn error) {
 	sending.Lock()
 	// 数据编码，返回给客户端
-	respRPCData := zio.Response{ServiceMethod: response.ServiceMethod, Reply: response.Reply, Seq: response.Seq, Error: errReturn}
+	respRPCData := codec.Response{ServiceMethod: response.ServiceMethod, Reply: response.Reply, Seq: response.Seq, Error: errReturn}
 	bytes, errE := serve.codec.Encoder(respRPCData)
 	if errE != nil {
 		//return
