@@ -21,6 +21,10 @@ var (
 	basePath = flag.String("basepath", "/zrpc_center", "")
 )
 
+var cli *rpcp.Client
+
+//var cli *rpc.Client
+
 func closeCli() {
 	cli = nil
 }
@@ -41,6 +45,8 @@ func main() {
 	// 创建客户端
 	if cli == nil {
 		cli, err = rpcp.NewClient(sd, center.SelectMode(center.Random), true)
+		//cli, err = rpc.LongClient(sd, center.SelectMode(center.Random))
+		//cli.SetOpt(pcd.New(cli.Conn)).SetOpt(zio.NewSession(cli.Conn))
 		defer closeCli()
 		if err != nil {
 			log.Fatal(err)
@@ -68,7 +74,7 @@ func main() {
 	}
 	//inArgsAny, err := ptypes.MarshalAny(args)
 	inArgsAny, err := anypb.New(args)
-	errC := cli.Call("service.QueryProto", inArgsAny, &reply)
+	errC := cli.Call("proto.QueryProto", inArgsAny, &reply)
 	if errC != nil {
 		fmt.Println("main.call.errC", errC)
 	} else {
@@ -89,7 +95,7 @@ func main() {
 		Param: str,
 	}
 	inArgsAny, err = anypb.New(args2)
-	call2 := cli.Go("service.QueryProto2", inArgsAny, &reply2, nil)
+	call2 := cli.Go("proto.QueryProto2", inArgsAny, &reply2, nil)
 	<-call2.Done
 	if call2.Error != nil {
 		fmt.Printf("main.go.reply2.error: %v \n", call2.Error)
@@ -114,7 +120,7 @@ func main() {
 		Param: str,
 	}
 	inArgsAny, err = anypb.New(args2)
-	call2 = cli.Go("service.GetUserList", inArgsAny, &reply3, nil)
+	call2 = cli.Go("proto.GetUserList", inArgsAny, &reply3, nil)
 	<-call2.Done
 	if call2.Error != nil {
 		fmt.Printf("main.go.reply3.error: %v \n", call2.Error)
@@ -135,7 +141,6 @@ func main() {
 
 var count int64 = 0
 var startTime int64 = 0
-var cli *rpcp.Client
 
 // 生成时间戳
 func GetCurrentTimeStampMS() int64 {
@@ -151,7 +156,7 @@ func Client(wg *sync.WaitGroup) {
 		Param: "msg",
 	}
 	inArgsAny, _ := anypb.New(args)
-	err := cli.Call("service.QueryProto", inArgsAny, &reply)
+	err := cli.Call("proto.QueryProto", inArgsAny, &reply)
 	if err != nil {
 		//fmt.Println("main.call.err", err)
 	} else {
@@ -159,7 +164,7 @@ func Client(wg *sync.WaitGroup) {
 	}
 
 	var reply2 any
-	call := cli.Go("service.QueryProto", inArgsAny, &reply2, nil)
+	call := cli.Go("proto.QueryProto", inArgsAny, &reply2, nil)
 	<-call.Done
 	if call.Error != nil {
 		//fmt.Printf("main.go.reply.error: %v \n", call.Error)

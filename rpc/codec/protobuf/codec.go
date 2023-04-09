@@ -4,6 +4,7 @@ import (
 	"google.golang.org/protobuf/proto"
 	"log"
 	"net"
+	cdc "zrpc/rpc/codec"
 )
 
 type codec struct {
@@ -14,11 +15,17 @@ func New(conn net.Conn) *codec {
 	return &codec{conn: conn}
 }
 
+func FuncNew() func(conn net.Conn) cdc.Codec {
+	return func(conn net.Conn) cdc.Codec {
+		return New(conn)
+	}
+}
+
 // Encoder 编码
 func (c *codec) Encoder(data any) ([]byte, error) {
 	// 序列化结构体数据
-	pdata := data.(*Response)
-	buf, err := proto.Marshal(pdata)
+	pdata := data.(Response)
+	buf, err := proto.Marshal(&pdata)
 	if err != nil {
 		log.Fatalln("Failed to encode:", err)
 		return buf, err
@@ -29,11 +36,11 @@ func (c *codec) Encoder(data any) ([]byte, error) {
 // Decoder 解码
 func (c *codec) Decoder(b []byte) (any, error) {
 	//反序列化结构体
-	data := &Response{}
-	err := proto.Unmarshal(b, data)
+	data := Response{}
+	err := proto.Unmarshal(b, &data)
 	if err != nil {
 		log.Fatalln("Failed to decode:", err)
-		return data, err
+		return &data, err
 	}
-	return data, nil
+	return &data, nil
 }

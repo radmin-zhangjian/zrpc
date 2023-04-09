@@ -1,24 +1,24 @@
-package rpcp
+package rpc
 
 import (
 	"context"
 	"errors"
 	"fmt"
 	"go/token"
-	"google.golang.org/protobuf/types/known/anypb"
 	"io"
 	"log"
 	"net"
 	"reflect"
+	"strconv"
 	"strings"
 	"sync"
 	"zrpc/rpc/center"
-	pcd "zrpc/rpc/codec/protobuf"
+	"zrpc/rpc/codec"
+	"zrpc/rpc/codec/msgpack"
 	"zrpc/rpc/zio"
 )
 
 var typeOfError = reflect.TypeOf((*error)(nil)).Elem()
-var typeOfAnypd = reflect.TypeOf((*anypb.Any)(nil)).Elem()
 
 type ServerCodec interface {
 	Encoder(any) ([]byte, error)
@@ -33,11 +33,9 @@ type ServerIo interface {
 
 // Server 声明服务端
 type Server struct {
-	codec      ServerCodec
 	sd         center.ServeDiscovery
 	addr       string
 	serviceMap sync.Map
-	io         ServerIo
 }
 
 // Serve 服务
@@ -48,8 +46,9 @@ type Serve struct {
 }
 
 type methodType struct {
-	method  reflect.Method
-	ArgType reflect.Type
+	method    reflect.Method
+	ArgType   reflect.Type
+	ReplyType reflect.Type
 }
 
 type service struct {
@@ -119,7 +118,7 @@ func (server *Server) register(rcvr any, name string) error {
 		if !method.IsExported() {
 			continue
 		}
-		if mtype.NumIn() != 3 {
+		if mtype.NumIn() != 4 {
 			log.Printf("rpc.Register: method %q has %d input parameters; needs exactly four\n", mname, mtype.NumIn())
 			continue
 		}
@@ -128,20 +127,24 @@ func (server *Server) register(rcvr any, name string) error {
 			log.Printf("rpc.Register: argument type of method %q is not exported: %q\n", mname, argType)
 			continue
 		}
-		if mtype.NumOut() != 2 {
+		replyType := mtype.In(3)
+		if replyType.Kind() != reflect.Pointer {
+			log.Printf("rpc.Register: reply type of method %q is not a pointer: %q\n", mname, replyType)
+			continue
+		}
+		if !isExportedOrBuiltinType(replyType) {
+			log.Printf("rpc.Register: reply type of method %q is not exported: %q\n", mname, replyType)
+			continue
+		}
+		if mtype.NumOut() != 1 {
 			log.Printf("rpc.Register: method %q has %d output parameters; needs exactly one\n", mname, mtype.NumOut())
 			continue
 		}
-		//log.Println(mtype.Out(0))
-		//if returnType := mtype.Out(0); returnType != typeOfAnypd {
-		//	log.Printf("rpc.Register: return type of method %q is %q, must be *anypb.Any\n", mname, returnType)
-		//	continue
-		//}
-		if returnType := mtype.Out(1); returnType != typeOfError {
+		if returnType := mtype.Out(0); returnType != typeOfError {
 			log.Printf("rpc.Register: return type of method %q is %q, must be error\n", mname, returnType)
 			continue
 		}
-		methods[mname] = &methodType{method: method, ArgType: argType}
+		methods[mname] = &methodType{method: method, ArgType: argType, ReplyType: replyType}
 	}
 	s.method = methods
 
@@ -163,26 +166,26 @@ func (server *Server) Close(lis net.Listener) {
 	lis.Close()
 }
 
-// Serve 监听tcp
-func (server *Server) Serve() (lis net.Listener) {
+// Server 启动服务
+func (server *Server) Server() (lis net.Listener) {
 	lis, e := net.Listen("tcp", server.addr)
 	if e != nil {
 		log.Fatalf("监听 %s err :%v", server.addr, e)
 		server.Close(lis)
 		return
 	}
-	defer server.Close(lis)
 
 	// 注册服务中心
 	server.sd.ServeRegister(server.addr)
 	// 心跳监测
 	go server.sd.TickerHeartbeatTask(server.addr)
 
-	server.Accept(lis)
 	return
 }
 
+// Accept 监听tcp
 func (server *Server) Accept(lis net.Listener) {
+	defer server.Close(lis)
 	for {
 		conn, err := lis.Accept()
 		if err != nil {
@@ -192,11 +195,12 @@ func (server *Server) Accept(lis net.Listener) {
 			continue
 		}
 
-		server.ServerConn(pcd.New(conn), zio.NewSession(conn))
+		server.Serve(msgpack.New(conn), zio.NewSession(conn))
 	}
 }
 
-func (server *Server) ServerConn(codec ServerCodec, zio ServerIo) {
+// Serve 建立服务
+func (server *Server) Serve(codec ServerCodec, zio ServerIo) {
 	serve := &Serve{codec: codec, io: zio}
 	serve.serviceMap = server.serviceMap
 	go serve.ServeCodec()
@@ -208,7 +212,10 @@ func (serve *Serve) ServeCodec() {
 	wg := new(sync.WaitGroup)
 	for {
 		response, svc, mtype, keepReading, req, err := serve.readRequest()
-		if err != "" {
+		if err != nil {
+			//if err == io.EOF {
+			//	break
+			//}
 			if !keepReading {
 				break
 			}
@@ -218,32 +225,30 @@ func (serve *Serve) ServeCodec() {
 			continue
 		}
 		wg.Add(1)
-		go serve.call(response, svc, mtype, sending, wg)
+		serve.call(response, svc, mtype, sending, wg)
 	}
 	wg.Wait()
 	serve.io.Close()
 }
 
 // 读取并解析参数
-func (serve *Serve) readRequest() (response *pcd.Response, svc *service, mtype *methodType, keepReading bool, req bool, err string) {
+func (serve *Serve) readRequest() (response *codec.Response, svc *service, mtype *methodType, keepReading bool, req bool, err error) {
 	// 使用RPC方式读取数据
-	b, errR := serve.io.Read()
-	if errR != nil {
-		err = errR.Error()
+	b, err := serve.io.Read()
+	if err != nil {
 		req = true
-		if errR == io.EOF || errR == io.ErrUnexpectedEOF {
+		if err == io.EOF || err == io.ErrUnexpectedEOF {
 			return
 		}
 		return
 	}
 
 	// 数据解码
-	res, errC := serve.codec.Decoder(b)
-	response = res.(*pcd.Response)
-	if errC != nil {
-		err = errR.Error()
+	res, err := serve.codec.Decoder(b)
+	response = res.(*codec.Response)
+	if err != nil {
 		req = true
-		if errC == io.EOF || errC == io.ErrUnexpectedEOF {
+		if err == io.EOF || err == io.ErrUnexpectedEOF {
 			return
 		}
 		return
@@ -255,7 +260,7 @@ func (serve *Serve) readRequest() (response *pcd.Response, svc *service, mtype *
 	// 根据读到的name，得到要调用的函数
 	dot := strings.LastIndex(response.ServiceMethod, ".")
 	if dot < 0 {
-		err = errors.New(fmt.Sprintf("rpc: service/method request ill-formed: %s", response.ServiceMethod)).Error()
+		err = errors.New(fmt.Sprintf("rpc: service/method request ill-formed: %s", response.ServiceMethod))
 		return
 	}
 	serviceName := response.ServiceMethod[:dot]
@@ -270,7 +275,7 @@ func (serve *Serve) readRequest() (response *pcd.Response, svc *service, mtype *
 	// 查询注册的方法
 	svci, ok := serve.serviceMap.Load(serviceName)
 	if !ok {
-		err = errors.New("rpc: can't find service " + response.ServiceMethod).Error()
+		err = errors.New("rpc: can't find service " + response.ServiceMethod)
 		return
 	}
 	svc = svci.(*service)
@@ -281,14 +286,13 @@ func (serve *Serve) readRequest() (response *pcd.Response, svc *service, mtype *
 }
 
 // 结果返回客户端
-func (serve *Serve) call(response *pcd.Response, svc *service, mtype *methodType, sending *sync.Mutex, wg *sync.WaitGroup) {
+func (serve *Serve) call(response *codec.Response, svc *service, mtype *methodType, sending *sync.Mutex, wg *sync.WaitGroup) {
 	defer wg.Done()
 
 	// 捕获业务程序异常 防止崩溃
 	defer func() {
 		if err := recover(); err != nil {
-			e := err.(error)
-			serve.sendResponse(response, sending, e.Error())
+			serve.sendResponse(response, sending, err.(error))
 			return
 		}
 	}()
@@ -302,31 +306,30 @@ func (serve *Serve) call(response *pcd.Response, svc *service, mtype *methodType
 	// 获取Args对应的struct参数
 	mapArgs := getArgsRValue(mtype, response.Args)
 	inArgs = append(inArgs, mapArgs)
+	// 返回值参数
+	inArgs = append(inArgs, reflect.ValueOf(reflect.ValueOf(&response.Reply).Interface()))
 
 	// 获取方法
 	method := mtype.method
 	// 反射调用方法
 	returnValues := method.Func.Call(inArgs)
-
 	// 返回Error类型
-	reply := returnValues[0].Interface()
-	errInter := returnValues[1].Interface()
-	var errReturn string
+	errInter := returnValues[0].Interface()
+	var errReturn error
 	if errInter != nil {
-		errReturn = errInter.(error).Error()
+		errReturn = errInter.(error)
 	} else {
-		errReturn = ""
+		errReturn = nil
 	}
-	response.Reply = reply.(*anypb.Any)
-	response.Error = errReturn
+
 	// 发送客户端
 	serve.sendResponse(response, sending, errReturn)
 }
 
-func (serve *Serve) sendResponse(response *pcd.Response, sending *sync.Mutex, errReturn string) {
+func (serve *Serve) sendResponse(response *codec.Response, sending *sync.Mutex, errReturn error) {
 	sending.Lock()
 	// 数据编码，返回给客户端
-	respRPCData := pcd.Response{ServiceMethod: response.ServiceMethod, Reply: response.Reply, Seq: response.Seq, Error: errReturn}
+	respRPCData := codec.Response{ServiceMethod: response.ServiceMethod, Reply: response.Reply, Seq: response.Seq, Error: errReturn}
 	bytes, errE := serve.codec.Encoder(respRPCData)
 	if errE != nil {
 		//return
@@ -342,5 +345,56 @@ func (serve *Serve) sendResponse(response *pcd.Response, sending *sync.Mutex, er
 
 // 包装参数给方法
 func getArgsRValue(mtype *methodType, args any) reflect.Value {
-	return reflect.ValueOf(reflect.ValueOf(args).Interface())
+	// 将interface{}类型的map转换为  map[string]interface{}
+	argMap := args.(map[string]any)
+
+	// 查找Args参数  reflect.Type类型 *xxx.Args.Elem()
+	//t := method.Type.In(2)
+	t := mtype.ArgType
+	// 获取结构体Args对象  reflect.Value类型
+	v := reflect.New(t)
+	// 判断是否是struct类型
+	if t.Kind() == reflect.Struct {
+		argNum := t.NumField()
+		for i := 0; i < argNum; i++ {
+			// 获取指定字段的反射值
+			f := v.Elem().Field(i)
+			// 获取struct的指定字段
+			stf := t.Field(i)
+			// 获取tag
+			name := strings.Split(stf.Tag.Get("json"), ",")[0]
+			// 判断是否为忽略字段
+			if name == "-" {
+				continue
+			}
+			// 判断是否为空，若为空则使用字段本身的名称获取value值
+			if name == "" {
+				name = stf.Name
+			}
+			// 获取value值
+			val, ok := argMap[name]
+			if !ok {
+				continue
+			}
+			// 获取指定字段的类型
+			kind := v.Elem().Field(i).Kind()
+			// 若字段为指针类型
+			if kind == reflect.Ptr {
+				// 获取对应字段的kind
+				kind = f.Type().Elem().Kind()
+			}
+			// 赋值
+			switch kind {
+			case reflect.Int:
+			case reflect.Int64:
+				res, _ := strconv.ParseInt(fmt.Sprint(val), 10, 64)
+				v.Elem().Field(i).SetInt(res)
+			case reflect.String:
+				v.Elem().Field(i).SetString(fmt.Sprint(val))
+			}
+		}
+	} else if t.Kind() == reflect.Map {
+		return reflect.ValueOf(reflect.ValueOf(args).Interface())
+	}
+	return v.Elem()
 }

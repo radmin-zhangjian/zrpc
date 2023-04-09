@@ -13,3 +13,8 @@ type Response struct {
 	// Id
 	Seq uint64
 }
+
+type Codec interface {
+	Encoder(any) ([]byte, error)
+	Decoder(b []byte) (any, error)
+}

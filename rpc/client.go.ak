@@ -1,15 +1,15 @@
-package rpcp
+package rpc
 
 import (
 	"errors"
-	"fmt"
-	"google.golang.org/protobuf/types/known/anypb"
 	"io"
 	"log"
 	"net"
+	"reflect"
 	"sync"
 	"zrpc/rpc/center"
-	pcd "zrpc/rpc/codec/protobuf"
+	"zrpc/rpc/codec"
+	"zrpc/rpc/codec/msgpack"
 	"zrpc/rpc/zio"
 )
 
@@ -73,24 +73,24 @@ func ClientConn(sd center.ServeDiscovery, sm center.SelectAlgorithm) (net.Conn, 
 	// 链接服务端
 	conn, err := net.Dial("tcp", addr)
 	if err != nil {
-		fmt.Println("err")
+		return nil, err
 	}
 	return conn, nil
 }
 
-// ClientNew 构造方法
-func ClientNew(conn net.Conn, codec ClientCodec, zio ClientIo, mode bool) *Client {
-	client := &Client{io: zio, codec: codec, Conn: conn, pending: make(map[uint64]*Call)}
+// NewClient 构造方法
+func NewClient(conn net.Conn, codec ClientCodec, zio ClientIo, mode bool) *Client {
+	cli := &Client{io: zio, codec: codec, Conn: conn, pending: make(map[uint64]*Call)}
 	if mode == true {
-		go client.input()
+		go cli.input()
 	} else {
-		go client.inputNoCycle()
+		go cli.inputNoCycle()
 	}
-	return client
+	return cli
 }
 
-// NewClient 构造方法
-func NewClient(sd center.ServeDiscovery, sm center.SelectAlgorithm, mode bool) (*Client, error) {
+// ClientRpc 构造方法
+func ClientRpc(sd center.ServeDiscovery, sm center.SelectAlgorithm, mode bool) (*Client, error) {
 	// 发现服务
 	disArrs, err := sd.ServeDiscovery()
 	if err != nil {
@@ -106,22 +106,42 @@ func NewClient(sd center.ServeDiscovery, sm center.SelectAlgorithm, mode bool) (
 	// 链接服务端
 	conn, err := net.Dial("tcp", addr)
 	if err != nil {
-		fmt.Println("err")
+		return nil, err
 	}
 
 	// 创建客户端对象
-	client := ClientNew(conn, pcd.New(conn), zio.NewSession(conn), mode)
-	return client, nil
+	cli := NewClient(conn, msgpack.New(conn), zio.NewSession(conn), mode)
+	//cli := NewClient(conn, nil, nil, mode)
+	return cli, nil
+}
+
+func ShortClient(sd center.ServeDiscovery, sm center.SelectAlgorithm) (*Client, error) {
+	return ClientRpc(sd, sm, false)
+}
+
+func LongClient(sd center.ServeDiscovery, sm center.SelectAlgorithm) (*Client, error) {
+	return ClientRpc(sd, sm, true)
+}
+
+// SetOpt 自定义设置opt
+func (c *Client) SetOpt(opt any) *Client {
+	switch opt.(type) {
+	case ClientCodec:
+		c.codec = opt.(ClientCodec)
+	case ClientIo:
+		c.io = opt.(ClientIo)
+	}
+	return c
 }
 
 // Call 同步RPC客户端
-func (c *Client) Call(serviceMethod string, args *anypb.Any, reply any) error {
+func (c *Client) Call(serviceMethod string, args any, reply any) error {
 	call := <-c.Go(serviceMethod, args, reply, make(chan *Call, 1)).Done
 	return call.Error
 }
 
 // Go 异步RPC客户端
-func (c *Client) Go(serviceMethod string, args *anypb.Any, reply any, done chan *Call) *Call {
+func (c *Client) Go(serviceMethod string, args any, reply any, done chan *Call) *Call {
 	call := new(Call)
 	call.ServiceMethod = serviceMethod
 	call.Args = args
@@ -150,9 +170,36 @@ func (c *Client) send(call *Call) {
 	c.mutex.Unlock()
 
 	// 处理参数
-	inArgs := call.Args.(*anypb.Any)
+	var inArgs any
+	mapArgs := make(map[string]any)
+	argsKind := reflect.ValueOf(call.Args).Kind()
+	if argsKind == reflect.Struct {
+		v := reflect.ValueOf(call.Args)
+		t := reflect.TypeOf(call.Args)
+		argNum := v.NumField()
+		c.mutex.Lock()
+		for i := 0; i < argNum; i++ {
+			mapArgs[t.Field(i).Name] = v.Field(i).Interface()
+		}
+		c.mutex.Unlock()
+		inArgs = mapArgs
+	} else if argsKind == reflect.Map {
+		inArgs = call.Args
+	}
+
+	//inArgs = call.Args
+	//var reqData any
+	//switch call.Args.(type) {
+	//case *anypb.Any:
+	//	inArgs = call.Args.(*anypb.Any)
+	//	reqData = pcd.Response{ServiceMethod: call.ServiceMethod, Args: inArgs, Seq: seq}
+	//case interface{}:
+	//	inArgs = call.Args
+	//	reqData = codec.Response{ServiceMethod: call.ServiceMethod, Args: inArgs, Seq: seq}
+	//}
+
 	// 编码数据
-	reqData := pcd.Response{ServiceMethod: call.ServiceMethod, Args: inArgs, Seq: seq}
+	reqData := codec.Response{ServiceMethod: call.ServiceMethod, Args: inArgs, Seq: seq}
 	b, err := c.codec.Encoder(reqData)
 	if err != nil {
 		log.Printf("rpc encode: %v", err)
@@ -175,7 +222,7 @@ func (c *Client) input() {
 		}
 		// 解码
 		res, errD := c.codec.Decoder(respBytes)
-		response := res.(*pcd.Response)
+		response := res.(*codec.Response)
 		if errD != nil {
 			err = errors.New("reading error body: " + errD.Error())
 			break
@@ -192,12 +239,11 @@ func (c *Client) input() {
 		switch {
 		case call == nil:
 
-		case response.Error != "":
-			call.Error = errors.New(response.Error)
+		case response.Error != nil:
+			call.Error = response.Error
 			call.done()
 		default:
 			// 处理服务端返回的数据
-			//log.Println("response.Reply: ", response.Reply)
 			replay := call.Reply.(*any)
 			*replay = response.Reply
 			call.done()
@@ -237,7 +283,7 @@ func (c *Client) inputNoCycle() {
 	}
 	// 解码
 	res, errD := c.codec.Decoder(respBytes)
-	response := res.(*pcd.Response)
+	response := res.(*codec.Response)
 	if errD != nil {
 		err = errors.New("reading error body: " + errD.Error())
 	}
@@ -253,8 +299,8 @@ func (c *Client) inputNoCycle() {
 	switch {
 	case call == nil:
 
-	case response.Error != "":
-		call.Error = errors.New(response.Error)
+	case response.Error != nil:
+		call.Error = response.Error
 		call.done()
 	default:
 		// 处理服务端返回的数据

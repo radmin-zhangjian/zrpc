@@ -52,7 +52,43 @@ func main() {
 		log.Fatal(err)
 	}
 
-	// 创建客户端
+	// protobuf 客户端
+	//if cli == nil {
+	//	//cli, err = rpc.NewClient(sd, center.SelectMode(center.Random), true)
+	//	cli, err = rpc.LongClient(sd, center.SelectMode(center.Random))
+	//	cli.SetOpt(pcd.New(cli.Conn)).SetOpt(zio.NewSession(cli.Conn))
+	//	defer closeCli()
+	//	if err != nil {
+	//		log.Fatal(err)
+	//	}
+	//}
+	//
+	//// 异步rpc
+	//var reply3 any
+	//str3 := "我是rpc测试参数222！！！"
+	//args2 := &test.Args2{
+	//	Id:    1,
+	//	Param: str3,
+	//}
+	//inArgsAny, err := anypb.New(args2)
+	//callproto := cli.Go("proto.GetUserList", inArgsAny, &reply3, nil)
+	//<-callproto.Done
+	//if callproto.Error != nil {
+	//	fmt.Printf("proto.go.reply3.error: %v \n", callproto.Error)
+	//} else {
+	//	result := reply3.(*anypb.Any)
+	//	unmarshal := &user.Reply{}
+	//	anypb.UnmarshalTo(result, unmarshal, proto.UnmarshalOptions{})
+	//	fmt.Printf("main.go.reply3: %v \n", unmarshal)
+	//	fmt.Println("main.go.reply3.Detail", unmarshal.Detail)
+	//	fmt.Println("main.go.reply3.Detail---", unmarshal.Detail["身高"])
+	//	fmt.Println("main.go.reply3.Gender", unmarshal.Gender)
+	//	fmt.Println("main.go.reply3.List", unmarshal.List)
+	//	fmt.Println("main.go.reply3.List---", unmarshal.List[0].Model)
+	//}
+	//return
+
+	// 创建客户端 (msgpack\json\gob)
 	if cli == nil {
 		//cli, err = rpc.NewClient(sd, center.SelectMode(center.Random), true)
 		cli, err = rpc.LongClient(sd, center.SelectMode(center.Random))

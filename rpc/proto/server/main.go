@@ -31,7 +31,7 @@ func main() {
 	// 创建服务端
 	srv := rpcp.NewServer(*addr, sd)
 	// 将服务端方法，注册一下
-	srv.RegisterName(new(example.Test), "service")
+	srv.RegisterName(new(example.Test), "proto")
 	// 启动服务
 	srv.Serve()
 }

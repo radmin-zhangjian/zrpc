@@ -15,6 +15,12 @@ func New(conn net.Conn) *codec {
 	return &codec{conn: conn}
 }
 
+func FuncNew() func(conn net.Conn) cdc.Codec {
+	return func(conn net.Conn) cdc.Codec {
+		return New(conn)
+	}
+}
+
 // Encoder 编码
 func (c *codec) Encoder(data any) ([]byte, error) {
 	// msgpack 编码

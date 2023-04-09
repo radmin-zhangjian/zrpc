@@ -17,9 +17,21 @@ type Session struct {
 	c    io.Closer
 }
 
+type RWIo interface {
+	Read() ([]byte, error)
+	Write([]byte) error
+	Close() error
+}
+
 // NewSession 创建会话
 func NewSession(conn net.Conn) *Session {
 	return &Session{conn: conn, c: conn}
+}
+
+func FuncNew() func(conn net.Conn) RWIo {
+	return func(conn net.Conn) RWIo {
+		return NewSession(conn)
+	}
 }
 
 // 向连接中去写数据

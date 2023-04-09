@@ -8,6 +8,8 @@ import (
 	v1 "zrpc/example/v1"
 	v2 "zrpc/example/v2"
 	"zrpc/rpc"
+	"zrpc/rpc/codec/msgpack"
+	"zrpc/rpc/proto/example"
 )
 
 // go run main.go -addr=127.0.0.1:8092
@@ -38,11 +40,14 @@ func main() {
 
 	// 创建服务端
 	srv := rpc.NewServer(*addr, sd)
+	srv.SetOpt(msgpack.FuncNew())
 	// 将服务端方法，注册一下
 	//srv.Register(new(service.Test))
 	srv.RegisterName(new(service.Test), "service")
 	srv.RegisterName(new(v1.Test), "v1")
 	srv.RegisterName(new(v2.Test), "v2")
+	// protobuf 需要用proto前缀
+	srv.RegisterProto(new(example.Test), "proto")
 	// 启动服务
 	srv.Accept(srv.Server())
 }

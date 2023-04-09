@@ -2,31 +2,21 @@ package rpc
 
 import (
 	"errors"
+	"google.golang.org/protobuf/types/known/anypb"
 	"io"
 	"log"
 	"net"
-	"reflect"
 	"sync"
 	"zrpc/rpc/center"
 	"zrpc/rpc/codec"
 	"zrpc/rpc/codec/msgpack"
+	pcd "zrpc/rpc/codec/protobuf"
 	"zrpc/rpc/zio"
 )
 
 var debugLog = false
 var ErrShutdown = errors.New("connection is shut down")
 var ErrDiscovery = errors.New("service not found")
-
-type ClientCodec interface {
-	Encoder(any) ([]byte, error)
-	Decoder(b []byte) (any, error)
-}
-
-type ClientIo interface {
-	Read() ([]byte, error)
-	Write([]byte) error
-	Close() error
-}
 
 // Call 返回调用方
 type Call struct {
@@ -44,8 +34,8 @@ type Call struct {
 
 // Client 声明客户端
 type Client struct {
-	codec ClientCodec
-	io    ClientIo
+	codec codec.Codec
+	io    zio.RWIo
 	Conn  net.Conn
 
 	selectMode string
@@ -79,7 +69,7 @@ func ClientConn(sd center.ServeDiscovery, sm center.SelectAlgorithm) (net.Conn, 
 }
 
 // NewClient 构造方法
-func NewClient(conn net.Conn, codec ClientCodec, zio ClientIo, mode bool) *Client {
+func NewClient(conn net.Conn, codec codec.Codec, zio zio.RWIo, mode bool) *Client {
 	cli := &Client{io: zio, codec: codec, Conn: conn, pending: make(map[uint64]*Call)}
 	if mode == true {
 		go cli.input()
@@ -126,10 +116,10 @@ func LongClient(sd center.ServeDiscovery, sm center.SelectAlgorithm) (*Client, e
 // SetOpt 自定义设置opt
 func (c *Client) SetOpt(opt any) *Client {
 	switch opt.(type) {
-	case ClientCodec:
-		c.codec = opt.(ClientCodec)
-	case ClientIo:
-		c.io = opt.(ClientIo)
+	case codec.Codec:
+		c.codec = opt.(codec.Codec)
+	case zio.RWIo:
+		c.io = opt.(zio.RWIo)
 	}
 	return c
 }
@@ -170,40 +160,48 @@ func (c *Client) send(call *Call) {
 	c.mutex.Unlock()
 
 	// 处理参数
-	var inArgs any
-	mapArgs := make(map[string]any)
-	argsKind := reflect.ValueOf(call.Args).Kind()
-	if argsKind == reflect.Struct {
-		v := reflect.ValueOf(call.Args)
-		t := reflect.TypeOf(call.Args)
-		argNum := v.NumField()
-		c.mutex.Lock()
-		for i := 0; i < argNum; i++ {
-			mapArgs[t.Field(i).Name] = v.Field(i).Interface()
-		}
-		c.mutex.Unlock()
-		inArgs = mapArgs
-	} else if argsKind == reflect.Map {
-		inArgs = call.Args
-	}
-
-	//inArgs = call.Args
-	//var reqData any
-	//switch call.Args.(type) {
-	//case *anypb.Any:
-	//	inArgs = call.Args.(*anypb.Any)
-	//	reqData = pcd.Response{ServiceMethod: call.ServiceMethod, Args: inArgs, Seq: seq}
-	//case interface{}:
+	//var inArgs any
+	//mapArgs := make(map[string]any)
+	//argsKind := reflect.ValueOf(call.Args).Kind()
+	//if argsKind == reflect.Struct {
+	//	v := reflect.ValueOf(call.Args)
+	//	t := reflect.TypeOf(call.Args)
+	//	argNum := v.NumField()
+	//	c.mutex.Lock()
+	//	for i := 0; i < argNum; i++ {
+	//		mapArgs[t.Field(i).Name] = v.Field(i).Interface()
+	//	}
+	//	c.mutex.Unlock()
+	//	inArgs = mapArgs
+	//} else if argsKind == reflect.Map {
 	//	inArgs = call.Args
-	//	reqData = codec.Response{ServiceMethod: call.ServiceMethod, Args: inArgs, Seq: seq}
 	//}
 
 	// 编码数据
-	reqData := codec.Response{ServiceMethod: call.ServiceMethod, Args: inArgs, Seq: seq}
+	//reqData := codec.Response{ServiceMethod: call.ServiceMethod, Args: inArgs, Seq: seq}
+	//b, err := c.codec.Encoder(reqData)
+	//if err != nil {
+	//	log.Printf("rpc encode: %v", err)
+	//}
+
+	// 处理参数
+	//inArgs := call.Args
+	var reqData any
+	switch call.Args.(type) {
+	case *anypb.Any:
+		inArgs := call.Args.(*anypb.Any)
+		reqData = pcd.Response{ServiceMethod: call.ServiceMethod, Args: inArgs, Seq: seq}
+	default:
+		inArgs := call.Args
+		reqData = codec.Response{ServiceMethod: call.ServiceMethod, Args: inArgs, Seq: seq}
+	}
+
+	// 编码数据
 	b, err := c.codec.Encoder(reqData)
 	if err != nil {
 		log.Printf("rpc encode: %v", err)
 	}
+
 	// 写数据
 	err = c.io.Write(b)
 	if err != nil {
@@ -222,32 +220,90 @@ func (c *Client) input() {
 		}
 		// 解码
 		res, errD := c.codec.Decoder(respBytes)
-		response := res.(*codec.Response)
-		if errD != nil {
-			err = errors.New("reading error body: " + errD.Error())
-			break
-		}
+		err = c.responseData(res, errD)
 
-		// 获取返回 call
-		seq := response.Seq
-		c.mutex.Lock()
-		call := c.pending[seq]
-		delete(c.pending, seq)
-		c.mutex.Unlock()
+		//switch res.(type) {
+		//case *pcd.Response:
+		//	response := res.(*pcd.Response)
+		//	if errD != nil {
+		//		err = errors.New("reading error body: " + errD.Error())
+		//		break
+		//	}
+		//	// 获取返回 call
+		//	seq := response.Seq
+		//	c.mutex.Lock()
+		//	call := c.pending[seq]
+		//	delete(c.pending, seq)
+		//	c.mutex.Unlock()
+		//
+		//	// 处理返回数据
+		//	switch {
+		//	case call == nil:
+		//
+		//	case response.Error != "":
+		//		call.Error = errors.New(response.Error)
+		//		call.done()
+		//	default:
+		//		// 处理服务端返回的数据
+		//		//log.Println("response.Reply: ", response.Reply)
+		//		replay := call.Reply.(*any)
+		//		*replay = response.Reply
+		//		call.done()
+		//	}
+		//default:
+		//	response := res.(*codec.Response)
+		//	if errD != nil {
+		//		err = errors.New("reading error body: " + errD.Error())
+		//		break
+		//	}
+		//	// 获取返回 call
+		//	seq := response.Seq
+		//	c.mutex.Lock()
+		//	call := c.pending[seq]
+		//	delete(c.pending, seq)
+		//	c.mutex.Unlock()
+		//
+		//	// 处理返回数据
+		//	switch {
+		//	case call == nil:
+		//
+		//	case response.Error != nil:
+		//		call.Error = response.Error
+		//		call.done()
+		//	default:
+		//		// 处理服务端返回的数据
+		//		replay := call.Reply.(*any)
+		//		*replay = response.Reply
+		//		call.done()
+		//	}
+		//}
 
-		// 处理返回数据
-		switch {
-		case call == nil:
+		//response := res.(*codec.Response)
+		//if errD != nil {
+		//	err = errors.New("reading error body: " + errD.Error())
+		//	break
+		//}
 
-		case response.Error != nil:
-			call.Error = response.Error
-			call.done()
-		default:
-			// 处理服务端返回的数据
-			replay := call.Reply.(*any)
-			*replay = response.Reply
-			call.done()
-		}
+		//// 获取返回 call
+		//seq := response.Seq
+		//c.mutex.Lock()
+		//call := c.pending[seq]
+		//delete(c.pending, seq)
+		//c.mutex.Unlock()
+		//
+		//// 处理返回数据
+		//switch {
+		//case call == nil:
+		//
+		//case response.Error != nil:
+		//	call.Error = response.Error
+		//	call.done()
+		//default:
+		//	// 处理服务端返回的数据
+		//	replay := call.Reply.(*any)
+		//	*replay = response.Reply
+		//	call.done()
+		//}
 	}
 
 	c.mutex.Lock()
@@ -283,41 +339,43 @@ func (c *Client) inputNoCycle() {
 	}
 	// 解码
 	res, errD := c.codec.Decoder(respBytes)
-	response := res.(*codec.Response)
-	if errD != nil {
-		err = errors.New("reading error body: " + errD.Error())
-	}
+	err = c.responseData(res, errD)
 
-	// 获取返回 call
-	seq := response.Seq
-	c.mutex.Lock()
-	call := c.pending[seq]
-	delete(c.pending, seq)
-	c.mutex.Unlock()
-
-	// 处理返回数据
-	switch {
-	case call == nil:
-
-	case response.Error != nil:
-		call.Error = response.Error
-		call.done()
-	default:
-		// 处理服务端返回的数据
-		//var outArgs []byte
-		//for _, arg := range response.Args {
-		//	for _, a := range arg.([]byte) {
-		//		outArgs = append(outArgs, a)
-		//	}
-		//}
-		//fmt.Println("response.outArgs: ", string(outArgs))
-
-		replay := call.Reply.(*any)
-		*replay = response.Reply
-		//call.Reply = replay
-		//log.Printf("replay------: %#v", replay)
-		call.done()
-	}
+	//response := res.(*codec.Response)
+	//if errD != nil {
+	//	err = errors.New("reading error body: " + errD.Error())
+	//}
+	//
+	//// 获取返回 call
+	//seq := response.Seq
+	//c.mutex.Lock()
+	//call := c.pending[seq]
+	//delete(c.pending, seq)
+	//c.mutex.Unlock()
+	//
+	//// 处理返回数据
+	//switch {
+	//case call == nil:
+	//
+	//case response.Error != nil:
+	//	call.Error = response.Error
+	//	call.done()
+	//default:
+	//	// 处理服务端返回的数据
+	//	//var outArgs []byte
+	//	//for _, arg := range response.Args {
+	//	//	for _, a := range arg.([]byte) {
+	//	//		outArgs = append(outArgs, a)
+	//	//	}
+	//	//}
+	//	//fmt.Println("response.outArgs: ", string(outArgs))
+	//
+	//	replay := call.Reply.(*any)
+	//	*replay = response.Reply
+	//	//call.Reply = replay
+	//	//log.Printf("replay------: %#v", replay)
+	//	call.done()
+	//}
 
 	c.mutex.Lock()
 	c.shutdown = true
@@ -330,4 +388,64 @@ func (c *Client) inputNoCycle() {
 	}
 	c.mutex.Unlock()
 	c.Conn.Close()
+}
+
+// call done
+func (c *Client) responseData(res any, errD error) (err error) {
+	switch res.(type) {
+	case *pcd.Response:
+		response := res.(*pcd.Response)
+		if errD != nil {
+			err = errors.New("reading error body: " + errD.Error())
+			break
+		}
+		// 获取返回 call
+		seq := response.Seq
+		c.mutex.Lock()
+		call := c.pending[seq]
+		delete(c.pending, seq)
+		c.mutex.Unlock()
+
+		// 处理返回数据
+		switch {
+		case call == nil:
+
+		case response.Error != "":
+			call.Error = errors.New(response.Error)
+			call.done()
+		default:
+			// 处理服务端返回的数据
+			//log.Println("response.Reply: ", response.Reply)
+			replay := call.Reply.(*any)
+			*replay = response.Reply
+			call.done()
+		}
+	default:
+		response := res.(*codec.Response)
+		if errD != nil {
+			err = errors.New("reading error body: " + errD.Error())
+			break
+		}
+		// 获取返回 call
+		seq := response.Seq
+		c.mutex.Lock()
+		call := c.pending[seq]
+		delete(c.pending, seq)
+		c.mutex.Unlock()
+
+		// 处理返回数据
+		switch {
+		case call == nil:
+
+		case response.Error != nil:
+			call.Error = response.Error
+			call.done()
+		default:
+			// 处理服务端返回的数据
+			replay := call.Reply.(*any)
+			*replay = response.Reply
+			call.done()
+		}
+	}
+	return
 }
