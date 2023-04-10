@@ -44,7 +44,7 @@ type Server struct {
 type Serve struct {
 	codec      ServerCodec
 	io         ServerIo
-	serviceMap sync.Map
+	serviceMap *sync.Map
 }
 
 type methodType struct {
@@ -198,7 +198,7 @@ func (server *Server) Accept(lis net.Listener) {
 
 func (server *Server) ServerConn(codec ServerCodec, zio ServerIo) {
 	serve := &Serve{codec: codec, io: zio}
-	serve.serviceMap = server.serviceMap
+	serve.serviceMap = &server.serviceMap
 	go serve.ServeCodec()
 }
 

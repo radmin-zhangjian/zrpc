@@ -46,11 +46,11 @@ type Server struct {
 type Serve struct {
 	codec      codec.Codec
 	io         zio.RWIo
-	serviceMap sync.Map
+	serviceMap *sync.Map
 
 	ServiceMethod string
 	*RouterGroup
-	pool sync.Pool
+	pool *sync.Pool
 }
 
 type methodType struct {
@@ -278,8 +278,8 @@ func (server *Server) Serve(codec codec.Codec, zio zio.RWIo) {
 	serve.codec = codec
 	serve.io = zio
 	serve.RouterGroup = server.RouterGroup
-	serve.serviceMap = server.serviceMap
-	serve.pool = server.servePool
+	serve.serviceMap = &server.serviceMap
+	serve.pool = &server.servePool
 	server.pool.Put(serve)
 	go serve.ServeCodec()
 }

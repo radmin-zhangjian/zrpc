@@ -30,13 +30,15 @@ type Server struct {
 
 	codec func(conn net.Conn) codec.Codec
 	io    func(conn net.Conn) zio.RWIo
+
+	pool sync.Pool
 }
 
 // Serve 服务
 type Serve struct {
 	codec      codec.Codec
 	io         zio.RWIo
-	serviceMap sync.Map
+	serviceMap *sync.Map
 }
 
 type methodType struct {
@@ -54,7 +56,14 @@ type service struct {
 
 // NewServer 构造方法
 func NewServer(addr string, sd center.ServeDiscovery) *Server {
-	return &Server{addr: addr, sd: sd}
+	engine := &Server{
+		addr: addr,
+		sd:   sd,
+	}
+	engine.pool.New = func() any {
+		return &Serve{}
+	}
+	return engine
 }
 
 // SetOpt 自定义设置opt
@@ -292,10 +301,18 @@ func (server *Server) Accept(lis net.Listener) {
 	}
 }
 
+func (serve *Serve) reset() {
+
+}
+
 // Serve 建立服务
 func (server *Server) Serve(codec codec.Codec, zio zio.RWIo) {
-	serve := &Serve{codec: codec, io: zio}
-	serve.serviceMap = server.serviceMap
+	serve := server.pool.Get().(*Serve)
+	serve.reset()
+	serve.codec = codec
+	serve.io = zio
+	serve.serviceMap = &server.serviceMap
+	server.pool.Put(serve)
 	go serve.ServeCodec()
 }
 
@@ -335,6 +352,8 @@ func (serve *Serve) readRequest() (response any, svc *service, mtype *methodType
 		}
 		return
 	}
+
+	// auth认证
 
 	// 数据解码
 	res, err := serve.codec.Decoder(b)
