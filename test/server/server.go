@@ -40,7 +40,8 @@ func main() {
 
 	// 创建服务端
 	srv := rpc.NewServer(*addr, sd)
-	srv.SetOpt(msgpack.FuncNew())
+	// SetOpt (codec/zio/auth)
+	srv.SetOpt(msgpack.FuncNew()).SetOptAuth(func(token string) bool { return token == "aaa111bbb222ccc3" })
 	// 将服务端方法，注册一下
 	//srv.Register(new(service.Test))
 	srv.RegisterName(new(service.Test), "service")

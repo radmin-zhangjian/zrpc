@@ -24,14 +24,14 @@ var typeOfError = reflect.TypeOf((*error)(nil)).Elem()
 
 // Server 声明服务端
 type Server struct {
-	sd         center.ServeDiscovery
-	addr       string
+	sd   center.ServeDiscovery
+	addr string
+	pool sync.Pool // serve pool
+
+	codec      func(conn net.Conn) codec.Codec
+	io         func(conn net.Conn) zio.RWIo
 	serviceMap sync.Map
-
-	codec func(conn net.Conn) codec.Codec
-	io    func(conn net.Conn) zio.RWIo
-
-	pool sync.Pool
+	authFunc   func(string) bool
 }
 
 // Serve 服务
@@ -39,6 +39,7 @@ type Serve struct {
 	codec      codec.Codec
 	io         zio.RWIo
 	serviceMap *sync.Map
+	authFunc   func(string) bool
 }
 
 type methodType struct {
@@ -74,6 +75,11 @@ func (server *Server) SetOpt(opt any) *Server {
 	case func(conn net.Conn) zio.RWIo:
 		server.io = opt.(func(conn net.Conn) zio.RWIo)
 	}
+	return server
+}
+
+func (server *Server) SetOptAuth(f func(string) bool) *Server {
+	server.authFunc = f
 	return server
 }
 
@@ -301,10 +307,6 @@ func (server *Server) Accept(lis net.Listener) {
 	}
 }
 
-func (serve *Serve) reset() {
-
-}
-
 // Serve 建立服务
 func (server *Server) Serve(codec codec.Codec, zio zio.RWIo) {
 	serve := server.pool.Get().(*Serve)
@@ -312,8 +314,13 @@ func (server *Server) Serve(codec codec.Codec, zio zio.RWIo) {
 	serve.codec = codec
 	serve.io = zio
 	serve.serviceMap = &server.serviceMap
+	serve.authFunc = server.authFunc
 	server.pool.Put(serve)
 	go serve.ServeCodec()
+}
+
+func (serve *Serve) reset() {
+
 }
 
 // ServeCodec 调用接口
@@ -326,6 +333,10 @@ func (serve *Serve) ServeCodec() {
 			//if err == io.EOF {
 			//	break
 			//}
+			if err.Error() == "auth error" {
+				serve.sendResponse(response, sending, err)
+				break
+			}
 			if !keepReading {
 				break
 			}
@@ -353,8 +364,6 @@ func (serve *Serve) readRequest() (response any, svc *service, mtype *methodType
 		return
 	}
 
-	// auth认证
-
 	// 数据解码
 	res, err := serve.codec.Decoder(b)
 	//response = res.(*codec.Response)
@@ -365,6 +374,16 @@ func (serve *Serve) readRequest() (response any, svc *service, mtype *methodType
 			return
 		}
 		return
+	}
+
+	// auth认证
+	if serve.authFunc != nil {
+		af := serve.authFunc(serve.io.GetToken())
+		if !af {
+			err = errors.New("auth error")
+			log.Printf("%s", "auth error")
+			return
+		}
 	}
 
 	// 此次的coon是否已经结束

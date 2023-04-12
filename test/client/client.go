@@ -92,7 +92,7 @@ func main() {
 	if cli == nil {
 		//cli, err = rpc.NewClient(sd, center.SelectMode(center.Random), true)
 		cli, err = rpc.LongClient(sd, center.SelectMode(center.Random))
-		cli.SetOpt(msgpack.New(cli.Conn)).SetOpt(zio.NewSession(cli.Conn))
+		cli.SetOpt(msgpack.New(cli.Conn)).SetOpt(zio.NewSession(cli.Conn)).SetOptAuth("aaa111bbb222ccc3")
 		defer closeCli()
 		if err != nil {
 			log.Fatal(err)
@@ -122,9 +122,11 @@ func main() {
 	errC := cli.Call("service.QueryUser", args, &reply)
 	if errC != nil {
 		fmt.Println("main.call.errC", errC)
+	} else {
+		reply1 := reply.(map[string]any)
+		fmt.Println("main.call.reply", reply1["Age"])
 	}
-	reply1 := reply.(map[string]any)
-	fmt.Println("main.call.reply", reply1["Age"])
+	fmt.Println("main.call.reply", reply)
 
 	fmt.Println("==========================================")
 
@@ -137,7 +139,7 @@ func main() {
 	}
 	fmt.Printf("main.go.reply2: %v \n", reply2)
 
-	time.Sleep(2 * time.Second)
+	time.Sleep(1 * time.Second)
 }
 
 var count int64 = 0

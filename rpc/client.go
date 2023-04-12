@@ -39,6 +39,7 @@ type Client struct {
 	Conn  net.Conn
 
 	selectMode string
+	token      string
 
 	seq      uint64
 	pending  map[uint64]*Call
@@ -124,6 +125,11 @@ func (c *Client) SetOpt(opt any) *Client {
 	return c
 }
 
+func (c *Client) SetOptAuth(token string) *Client {
+	c.token = token
+	return c
+}
+
 // Call 同步RPC客户端
 func (c *Client) Call(serviceMethod string, args any, reply any) error {
 	call := <-c.Go(serviceMethod, args, reply, make(chan *Call, 1)).Done
@@ -157,6 +163,10 @@ func (c *Client) send(call *Call) {
 	seq := c.seq
 	c.seq++
 	c.pending[seq] = call
+	// auth认证
+	if len(c.token) > 0 {
+		c.io.SetToken(c.token)
+	}
 	c.mutex.Unlock()
 
 	// 处理参数
