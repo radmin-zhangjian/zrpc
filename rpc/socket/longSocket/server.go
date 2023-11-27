@@ -13,6 +13,7 @@ import (
 	"strings"
 	"sync"
 	"zrpc/rpc/center"
+	"zrpc/rpc/codec"
 	"zrpc/rpc/codec/msgpack"
 	"zrpc/rpc/zio"
 )
@@ -22,16 +23,16 @@ var typeOfError = reflect.TypeOf((*error)(nil)).Elem()
 // ConnMap 用来记录所有的客户端连接
 var ConnMap map[string]*Serve
 
-type ServerCodec interface {
-	Encoder(zio.Response) ([]byte, error)
-	Decoder(b []byte) (zio.Response, error)
-}
-
-type ServerIo interface {
-	Read() ([]byte, error)
-	Write([]byte) error
-	Close() error
-}
+//type ServerCodec interface {
+//	Encoder(codec.Response) ([]byte, error)
+//	Decoder(b []byte) (codec.Response, error)
+//}
+//
+//type ServerIo interface {
+//	Read() ([]byte, error)
+//	Write([]byte) error
+//	Close() error
+//}
 
 // Server 声明服务端
 type Server struct {
@@ -42,8 +43,8 @@ type Server struct {
 
 // Serve 服务
 type Serve struct {
-	codec      ServerCodec
-	io         ServerIo
+	codec      codec.Codec
+	io         zio.RWIo
 	serviceMap sync.Map
 	conn       net.Conn
 	output     chan []byte
@@ -198,7 +199,7 @@ func (server *Server) Accept(lis net.Listener) {
 }
 
 // Serve 建立服务
-func (server *Server) Serve(codec ServerCodec, zio ServerIo, conn net.Conn) {
+func (server *Server) Serve(codec codec.Codec, zio zio.RWIo, conn net.Conn) {
 	serve := &Serve{codec: codec, io: zio, conn: conn, output: make(chan []byte, 128)}
 	serve.serviceMap = server.serviceMap
 
@@ -243,7 +244,7 @@ func (serve *Serve) ServeCodec() {
 }
 
 // 读取并解析参数
-func (serve *Serve) readRequest() (response *zio.Response, svc *service, mtype *methodType, keepReading bool, req bool, err error) {
+func (serve *Serve) readRequest() (response *codec.Response, svc *service, mtype *methodType, keepReading bool, req bool, err error) {
 	// 使用RPC方式读取数据
 	b, err := serve.io.Read()
 	if err != nil {
@@ -256,7 +257,7 @@ func (serve *Serve) readRequest() (response *zio.Response, svc *service, mtype *
 
 	// 数据解码
 	res, err := serve.codec.Decoder(b)
-	response = &res
+	response = res.(*codec.Response)
 	if err != nil {
 		req = true
 		if err == io.EOF || err == io.ErrUnexpectedEOF {
@@ -290,7 +291,7 @@ func (serve *Serve) readRequest() (response *zio.Response, svc *service, mtype *
 }
 
 // 结果返回客户端
-func (serve *Serve) call(response *zio.Response, svc *service, mtype *methodType, sending *sync.Mutex) {
+func (serve *Serve) call(response *codec.Response, svc *service, mtype *methodType, sending *sync.Mutex) {
 	// 捕获业务程序异常 防止崩溃
 	defer func() {
 		if err := recover(); err != nil {
@@ -328,9 +329,9 @@ func (serve *Serve) call(response *zio.Response, svc *service, mtype *methodType
 	serve.sendResponse(response, sending, errReturn)
 }
 
-func (serve *Serve) sendResponse(response *zio.Response, sending *sync.Mutex, errReturn error) {
+func (serve *Serve) sendResponse(response *codec.Response, sending *sync.Mutex, errReturn error) {
 	sending.Lock()
-	respRPCData := zio.Response{ServiceMethod: response.ServiceMethod, Reply: response.Reply, Seq: response.Seq, Error: errReturn}
+	respRPCData := codec.Response{ServiceMethod: response.ServiceMethod, Reply: response.Reply, Seq: response.Seq, Error: errReturn}
 	// 数据编码，返回给客户端
 	bytes, errE := serve.codec.Encoder(respRPCData)
 	if errE != nil {
