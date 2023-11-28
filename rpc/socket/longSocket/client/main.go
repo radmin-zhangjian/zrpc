@@ -47,9 +47,9 @@ func main() {
 	// 异步rpc
 	var reply any
 	str := "我是rpc测试参数！！！"
-	cli.Go("v1.QueryInt", map[string]any{"Id": 10000, "msg": str}, &reply, nil)
+	//cli.Go("v1.QueryInt", map[string]any{"Id": 10000, "msg": str, "assign": "p-2"}, &reply, nil)
 
-	cli.Go("v1.QueryUser", map[string]any{"Id": 2, "msg": str}, &reply, nil)
+	cli.Go("v1.QueryUser", map[string]any{"Id": 1, "msg": str, "assign": "p-3"}, &reply, nil)
 
 	for {
 
