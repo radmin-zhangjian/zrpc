@@ -45,7 +45,7 @@ func main() {
 	defer srv.Close(lis)
 
 	// tpc连接map
-	longSocket.ConnMap = make(map[string]*longSocket.Serve)
+	//longSocket.ConnMap = make(map[string]*longSocket.Serve)
 
 	// 开始监听
 	accrpt(srv, lis)

@@ -21,7 +21,8 @@ import (
 var typeOfError = reflect.TypeOf((*error)(nil)).Elem()
 
 // ConnMap 用来记录所有的客户端连接
-var ConnMap map[string]*Serve
+//var ConnMap map[string]*Serve
+var ConnMap = new(sync.Map)
 
 //type ServerCodec interface {
 //	Encoder(codec.Response) ([]byte, error)
@@ -43,11 +44,13 @@ type Server struct {
 
 // Serve 服务
 type Serve struct {
-	codec      codec.Codec
-	io         zio.RWIo
-	serviceMap sync.Map
-	conn       net.Conn
-	output     chan []byte
+	codec            codec.Codec
+	io               zio.RWIo
+	serviceMap       sync.Map
+	conn             net.Conn
+	output           chan []byte
+	remoteAddrAssign any
+	assign           string
 }
 
 type methodType struct {
@@ -204,10 +207,10 @@ func (server *Server) Serve(codec codec.Codec, zio zio.RWIo, conn net.Conn) {
 	serve.serviceMap = server.serviceMap
 
 	// 在线连接
-	mu := new(sync.Mutex)
-	mu.Lock()
-	ConnMap[conn.RemoteAddr().String()] = serve
-	mu.Unlock()
+	//mu := new(sync.Mutex)
+	//mu.Lock()
+	//ConnMap[conn.RemoteAddr().String()] = serve
+	//mu.Unlock()
 
 	go serve.ServeCodec()
 	go serve.Writer()
@@ -230,15 +233,20 @@ func (serve *Serve) ServeCodec() {
 		serve.call(response, svc, mtype, sending)
 	}
 
-	mu := new(sync.Mutex)
-	key := serve.conn.RemoteAddr().String()
-	if c, ok := ConnMap[key]; ok {
+	key := serve.conn.RemoteAddr().String() + "_" + serve.assign
+	if c, ok := ConnMap.Load(key); ok {
 		if c == serve {
-			mu.Lock()
-			delete(ConnMap, key)
-			mu.Unlock()
+			ConnMap.Delete(key)
 		}
 	}
+
+	var count int
+	ConnMap.Range(func(key, value interface{}) bool {
+		count++
+		fmt.Printf("key: %#v, serve: %v \n", key, value)
+		return true
+	})
+	fmt.Println("ConnMap count: ", count)
 
 	serve.io.Close()
 }
@@ -287,15 +295,34 @@ func (serve *Serve) readRequest() (response *codec.Response, svc *service, mtype
 	// 获取调用方法
 	mtype = svc.method[methodName]
 
+	// 在线连接
+	if serve.remoteAddrAssign == nil {
+		args := response.Args
+		arg := args.(map[string]any)
+		assign := arg["assign"].(string)
+		serve.remoteAddrAssign = serve.conn.RemoteAddr().String() + "_" + assign
+		serve.assign = assign
+		key := serve.remoteAddrAssign
+		ConnMap.Store(key, serve)
+	} else {
+		fmt.Printf("serve.remoteAddrAssign: %#v \n", serve.remoteAddrAssign)
+	}
+
 	return
 }
 
 // 结果返回客户端
 func (serve *Serve) call(response *codec.Response, svc *service, mtype *methodType, sending *sync.Mutex) {
+
 	// 捕获业务程序异常 防止崩溃
 	defer func() {
 		if err := recover(); err != nil {
-			serve.sendResponse(response, sending, err.(error))
+			switch err.(type) {
+			case string:
+				serve.sendResponse(response, sending, errors.New(err.(string)))
+			default:
+				serve.sendResponse(response, sending, err.(error))
+			}
 			return
 		}
 	}()
@@ -337,19 +364,31 @@ func (serve *Serve) sendResponse(response *codec.Response, sending *sync.Mutex, 
 	if errE != nil {
 		return
 	}
-	for _, c := range ConnMap {
-		// 将服务端编码后的数据，写出到客户端
-		//err := c.io.Write(bytes)
-		//if err != nil {
-		//	continue
-		//}
-		select {
-		case c.output <- bytes:
-		default:
-			delete(ConnMap, c.conn.RemoteAddr().String())
-			close(c.output)
+	// 将服务端编码后的数据，写出到客户端
+	// 只给自己发送
+	// serve.output <- bytes
+	//err := serve.io.Write(bytes)
+	//if err != nil {
+	//	return
+	//}
+	// 将服务端编码后的数据，写出到客户端
+	// 广播所有链接的人
+	ConnMap.Range(func(key, value any) bool {
+		k := key.(string)
+		c := value.(*Serve)
+		dot := strings.LastIndex(k, "_")
+		assign := k[dot+1:]
+		// 给对的人发消息  不加这层判断就是全局广播
+		if assign == serve.assign {
+			select {
+			case c.output <- bytes:
+			default:
+				ConnMap.Delete(k)
+				close(c.output)
+			}
 		}
-	}
+		return true
+	})
 	sending.Unlock()
 }
 
