@@ -5,8 +5,6 @@ import (
 	"log"
 	"net"
 	"zrpc/example/service"
-	v1 "zrpc/example/v1"
-	v2 "zrpc/example/v2"
 	"zrpc/rpc"
 	"zrpc/rpc/codec/msgpack"
 	"zrpc/rpc/socket/longSocket"
@@ -36,9 +34,7 @@ func main() {
 	srv := longSocket.NewServer(*addr, sd)
 
 	// 将服务端方法，注册一下
-	srv.RegisterName(new(service.Test), "service")
-	srv.RegisterName(new(v1.Test), "v1")
-	srv.RegisterName(new(v2.Test), "v2")
+	srv.RegisterName(new(service.Message), "message")
 
 	// 启动服务
 	lis := srv.Server()

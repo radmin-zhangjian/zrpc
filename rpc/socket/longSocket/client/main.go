@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
 	"log"
@@ -46,10 +47,29 @@ func main() {
 
 	// 异步rpc
 	var reply any
-	str := "我是rpc测试参数！！！"
-	//cli.Go("v1.QueryInt", map[string]any{"Id": 10000, "msg": str, "assign": "p-2"}, &reply, nil)
+	// map形式传参数时 需要注意 大小写 这块容易出错
+	//args := map[string]any{
+	//	"uid":     22,
+	//	"toUid":   1,
+	//	"message": "我是message测试参数！！！",
+	//	"assign":  "single",
+	//}
+	//cli.Go("message.SendMap", args, &reply, nil)
 
-	cli.Go("v1.QueryUser", map[string]any{"Id": 1, "msg": str, "assign": "p-3"}, &reply, nil)
+	// struct 形式传参数时 接收方
+	type MessageArgs struct {
+		Uid     int    `json:"uid"`
+		ToUid   int    `json:"toUid"`
+		Message string `json:"message"`
+		Assign  string `json:"assign"`
+	}
+	messageArgs := MessageArgs{
+		Uid:     22,
+		ToUid:   1,
+		Message: "你好，我是章鱼",
+		Assign:  "single",
+	}
+	cli.Go("message.Send", messageArgs, &reply, nil)
 
 	for {
 
@@ -63,7 +83,8 @@ func Call(call *longSocket.Done) {
 			if c.Error != nil {
 				fmt.Printf("main.go.Done.error: %v \n", c.Error)
 			}
-			fmt.Printf("main.go.Done: %v \n", c.Reply)
+			data, _ := json.Marshal(c.Reply)
+			fmt.Printf("main.go.Done: %v \n", string(data))
 		}
 	}
 }

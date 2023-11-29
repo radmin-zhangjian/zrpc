@@ -10,9 +10,6 @@ import (
 type Test struct {
 }
 
-type Reply struct {
-}
-
 // Args 参数
 type Args struct {
 	Id int64

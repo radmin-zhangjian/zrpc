@@ -21,19 +21,10 @@ import (
 var typeOfError = reflect.TypeOf((*error)(nil)).Elem()
 
 // ConnMap 用来记录所有的客户端连接
-//var ConnMap map[string]*Serve
 var ConnMap = new(sync.Map)
 
-//type ServerCodec interface {
-//	Encoder(codec.Response) ([]byte, error)
-//	Decoder(b []byte) (codec.Response, error)
-//}
-//
-//type ServerIo interface {
-//	Read() ([]byte, error)
-//	Write([]byte) error
-//	Close() error
-//}
+// OnlineMap 用来记录所有的用户ID
+var OnlineMap = new(sync.Map)
 
 // Server 声明服务端
 type Server struct {
@@ -50,7 +41,7 @@ type Serve struct {
 	conn             net.Conn
 	output           chan []byte
 	remoteAddrAssign any
-	assign           string
+	userId           any
 }
 
 type methodType struct {
@@ -207,10 +198,14 @@ func (server *Server) Serve(codec codec.Codec, zio zio.RWIo, conn net.Conn) {
 	serve.serviceMap = server.serviceMap
 
 	// 在线连接
-	//mu := new(sync.Mutex)
-	//mu.Lock()
-	//ConnMap[conn.RemoteAddr().String()] = serve
-	//mu.Unlock()
+	serveKey := serve.conn.RemoteAddr().String()
+	if serve.remoteAddrAssign == nil {
+		serve.remoteAddrAssign = serveKey
+	}
+	_, oko := ConnMap.Load(serveKey)
+	if !oko {
+		ConnMap.Store(serveKey, serve)
+	}
 
 	go serve.ServeCodec()
 	go serve.Writer()
@@ -233,11 +228,10 @@ func (serve *Serve) ServeCodec() {
 		serve.call(response, svc, mtype, sending)
 	}
 
-	key := serve.conn.RemoteAddr().String() + "_" + serve.assign
-	if c, ok := ConnMap.Load(key); ok {
-		if c == serve {
-			ConnMap.Delete(key)
-		}
+	key := serve.conn.RemoteAddr().String()
+	if _, ok := ConnMap.Load(key); ok {
+		OnlineMap.Delete(serve.userId)
+		ConnMap.Delete(key)
 	}
 
 	var count int
@@ -296,17 +290,24 @@ func (serve *Serve) readRequest() (response *codec.Response, svc *service, mtype
 	mtype = svc.method[methodName]
 
 	// 在线连接
-	if serve.remoteAddrAssign == nil {
-		args := response.Args
-		arg := args.(map[string]any)
-		assign := arg["assign"].(string)
-		serve.remoteAddrAssign = serve.conn.RemoteAddr().String() + "_" + assign
-		serve.assign = assign
-		key := serve.remoteAddrAssign
-		ConnMap.Store(key, serve)
-	} else {
-		fmt.Printf("serve.remoteAddrAssign: %#v \n", serve.remoteAddrAssign)
+	args := response.Args
+	arg := args.(map[string]any)
+	uid := arg["uid"]
+	if serve.userId == nil {
+		serve.userId = uid
 	}
+	if _, okk := OnlineMap.Load(uid); !okk {
+		OnlineMap.Store(uid, serve.remoteAddrAssign)
+	}
+	fmt.Printf("serve.args: %#v \n", arg)
+
+	var count int
+	OnlineMap.Range(func(key, value interface{}) bool {
+		count++
+		fmt.Printf("key: %#v, serve: %v \n", key, value)
+		return true
+	})
+	fmt.Println("OnlineMap count: ", count)
 
 	return
 }
@@ -365,30 +366,49 @@ func (serve *Serve) sendResponse(response *codec.Response, sending *sync.Mutex, 
 		return
 	}
 	// 将服务端编码后的数据，写出到客户端
-	// 只给自己发送
-	// serve.output <- bytes
-	//err := serve.io.Write(bytes)
-	//if err != nil {
-	//	return
-	//}
-	// 将服务端编码后的数据，写出到客户端
-	// 广播所有链接的人
-	ConnMap.Range(func(key, value any) bool {
-		k := key.(string)
-		c := value.(*Serve)
-		dot := strings.LastIndex(k, "_")
-		assign := k[dot+1:]
-		// 给对的人发消息  不加这层判断就是全局广播
-		if assign == serve.assign {
+	args := response.Args
+	arg := args.(map[string]any)
+	assign := arg["assign"].(string)
+	switch assign {
+	case "group":
+		// 获取群组所有uid，遍历发送
+		// 通过参数 groupId 链接数据库查询所有组内成员uid
+		// 遍历成员uid与OnlineMap对比查看是否在线
+		// 在线的用户发送消息 c.output <- bytes:
+
+	case "single":
+		// 给自己发送
+		serve.output <- bytes
+		//err := serve.io.Write(bytes)
+		// 将服务端编码后的数据，写出到客户端
+		// 给对应的人发送数据
+		toUid := arg["toUid"]
+		if val, okk := OnlineMap.Load(toUid); okk {
+			src, _ := ConnMap.Load(val)
+			c := src.(*Serve)
+			select {
+			case c.output <- bytes:
+			default:
+				OnlineMap.Delete(toUid)
+				ConnMap.Delete(val)
+				close(c.output)
+			}
+		}
+	default:
+		// 广播数据
+		ConnMap.Range(func(key, value any) bool {
+			k := key.(string)
+			c := value.(*Serve)
 			select {
 			case c.output <- bytes:
 			default:
 				ConnMap.Delete(k)
 				close(c.output)
 			}
-		}
-		return true
-	})
+			return true
+		})
+	}
+
 	sending.Unlock()
 }
 
@@ -424,11 +444,11 @@ func getArgsRValue(mtype *methodType, args any) reflect.Value {
 			// 获取tag
 			name := strings.Split(stf.Tag.Get("json"), ",")[0]
 			// 判断是否为忽略字段
-			if name == "-" {
-				continue
-			}
+			//if name == "-" {
+			//	continue
+			//}
 			// 判断是否为空，若为空则使用字段本身的名称获取value值
-			if name == "" {
+			if name == "-" || name == "" {
 				name = stf.Name
 			}
 			// 获取value值

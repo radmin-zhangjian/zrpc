@@ -6,6 +6,7 @@ import (
 	"log"
 	"net"
 	"reflect"
+	"strings"
 	"sync"
 	"zrpc/rpc/center"
 	"zrpc/rpc/codec"
@@ -155,18 +156,23 @@ func (c *Client) send(call *Call) {
 	// 处理参数
 	var inArgs any
 	mapArgs := make(map[string]any)
-	argsKind := reflect.ValueOf(call.Args).Kind()
-	if argsKind == reflect.Struct {
+	tt := reflect.ValueOf(call.Args)
+	if tt.Kind() == reflect.Struct {
 		v := reflect.ValueOf(call.Args)
 		t := reflect.TypeOf(call.Args)
 		argNum := v.NumField()
 		c.mutex.Lock()
 		for i := 0; i < argNum; i++ {
-			mapArgs[t.Field(i).Name] = v.Field(i).Interface()
+			stf := t.Field(i)
+			name := strings.Split(stf.Tag.Get("json"), ",")[0]
+			if name == "-" || name == "" {
+				name = stf.Name
+			}
+			mapArgs[name] = v.Field(i).Interface()
 		}
 		c.mutex.Unlock()
 		inArgs = mapArgs
-	} else if argsKind == reflect.Map {
+	} else if tt.Kind() == reflect.Map {
 		inArgs = call.Args
 	}
 
