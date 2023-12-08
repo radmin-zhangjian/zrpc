@@ -20,7 +20,7 @@ func MessageCreate(message *model.Message) {
 // MessageSave Save需要插入的数据存在则不进行插入
 func MessageSave(message *model.Message) {
 	db := utils.GetDB()
-	if result := db.Model(&message).Create(&message); result.Error != nil {
+	if result := db.Model(&message).Save(&message); result.Error != nil {
 		log.Printf("MessageSave: %v", result.Error)
 	}
 	return
