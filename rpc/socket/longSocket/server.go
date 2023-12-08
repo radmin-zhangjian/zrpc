@@ -359,7 +359,32 @@ func (serve *Serve) call(response *codec.Response, svc *service, mtype *methodTy
 
 func (serve *Serve) sendResponse(response *codec.Response, sending *sync.Mutex, errReturn error) {
 	sending.Lock()
-	respRPCData := codec.Response{ServiceMethod: response.ServiceMethod, Reply: response.Reply, Seq: response.Seq, Error: errReturn}
+
+	// 处理返回字段首字母数据
+	var responseReply any
+	mapArgs := make(map[string]any)
+	tt := reflect.ValueOf(response.Reply)
+	if tt.Kind() == reflect.Struct {
+		v := reflect.ValueOf(response.Reply)
+		t := reflect.TypeOf(response.Reply)
+		argNum := v.NumField()
+		//c.mutex.Lock()
+		for i := 0; i < argNum; i++ {
+			stf := t.Field(i)
+			name := strings.Split(stf.Tag.Get("json"), ",")[0]
+			if name == "-" || name == "" {
+				name = stf.Name
+			}
+			mapArgs[name] = v.Field(i).Interface()
+		}
+		//c.mutex.Unlock()
+		responseReply = mapArgs
+	} else if tt.Kind() == reflect.Map {
+		responseReply = response.Reply
+	}
+	//responseReply = response.Reply
+
+	respRPCData := codec.Response{ServiceMethod: response.ServiceMethod, Reply: responseReply, Seq: response.Seq, Error: errReturn}
 	// 数据编码，返回给客户端
 	bytes, errE := serve.codec.Encoder(respRPCData)
 	if errE != nil {

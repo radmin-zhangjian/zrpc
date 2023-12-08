@@ -5,6 +5,7 @@ import (
 	"log"
 	"net"
 	"zrpc/example/service"
+	"zrpc/example/utils"
 	"zrpc/rpc"
 	"zrpc/rpc/codec/msgpack"
 	"zrpc/rpc/socket/longSocket"
@@ -23,6 +24,9 @@ func main() {
 	if !flag.Parsed() {
 		flag.Parse()
 	}
+
+	// gorm 初始化
+	utils.InitDB()
 
 	// 创建服务发现
 	sd, err := rpc.CreateServiceDiscovery(*basePath, *registry, "", 0, 100)

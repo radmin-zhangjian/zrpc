@@ -4,6 +4,8 @@ import (
 	"context"
 	"log"
 	"zrpc/example/common"
+	"zrpc/example/dao"
+	"zrpc/example/model"
 )
 
 type Message struct {
@@ -38,6 +40,14 @@ type MessageArgs struct {
 // Send 传递消息
 func (m *Message) Send(ctx context.Context, arg MessageArgs, reply *any) error {
 	log.Printf("Message.Send ID：%v, Assign: %v", arg.Uid, arg.Assign)
+
+	// 保存消息
+	message := model.Message{Uid: arg.Uid, ToUid: arg.ToUid, Message: arg.Message}
+	dao.MessageCreate(&message)
+	id := message.Id
+	log.Printf("message id: %v", id)
+
+	// 返回消息
 	code := 1000
 	result := map[string]string{
 		"message": arg.Message,

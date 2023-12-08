@@ -66,7 +66,7 @@ func main() {
 	messageArgs := MessageArgs{
 		Uid:     22,
 		ToUid:   1,
-		Message: "你好，我是章鱼",
+		Message: "你好，我是da章鱼!!!",
 		Assign:  "single",
 	}
 	cli.Go("message.Send", messageArgs, &reply, nil)
