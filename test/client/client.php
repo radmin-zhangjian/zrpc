@@ -36,8 +36,18 @@ class TestController extends Controller
     public function write($response) {
         $response = msgpack_pack($response);
         $len = strlen($response);
+        // 数据头
         $buf = pack("a4", self::HEAD_MSG);
+        // 数据体长度
         $buf .= pack("N", $len);
+
+        // token 长度
+        $token_len = strlen(self::TOKEN);
+        $buf .= pack("n", $token_len);
+        // token 主体
+        $buf .= pack("a".$token_len, self::TOKEN);
+
+        // 数据主体
         $buf .= pack("a".$len, $response);
         return socket_write ($this->socket , $buf, strlen($buf));
     }
@@ -51,6 +61,13 @@ class TestController extends Controller
         $hLen = socket_read($this->socket, 4, PHP_BINARY_READ);
         $hLen = unpack("N", $hLen);
         $hLen = $hLen[1];
+
+        // token
+        $tokenLen = socket_read($this->socket, 2, PHP_BINARY_READ);
+        $tokenLen = unpack("n", $tokenLen);
+        $tokenLen = $tokenLen[1];
+        $token = socket_read($this->socket, $tokenLen, PHP_BINARY_READ);
+
         $buffer = socket_read($this->socket, $hLen, PHP_BINARY_READ);
         $buffer = msgpack_unpack($buffer);
         return $buffer;
