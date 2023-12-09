@@ -8,6 +8,7 @@ use see\console\Controller;
 class TestController extends Controller
 {
     const HEAD_MSG = "@**@";
+    const TOKEN = "aaa111bbb222ccc3";
     public $socket;
 
     // 析构函数
